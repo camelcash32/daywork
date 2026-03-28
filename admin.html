@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>⚡ DAYWORK ADMIN</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080808;color:#f0ede8;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh}
+.login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.login-box{background:#111;border:1px solid #1e1e1e;border-radius:16px;padding:32px;width:100%;max-width:360px}
+.login-box h1{color:#ef4444;font-size:24px;margin-bottom:4px}
+.login-box p{color:#444;font-size:13px;margin-bottom:24px}
+input{width:100%;background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:10px 14px;color:#f0ede8;font-family:inherit;font-size:14px;margin-bottom:12px;outline:none}
+input:focus{border-color:#ef4444}
+button{width:100%;background:#ef4444;color:#fff;border:none;border-radius:8px;padding:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+button:hover{background:#dc2626}
+.err{color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px}
+
+/* Dashboard */
+#dashboard{display:none}
+.topbar{background:#0f0f0f;border-bottom:1px solid #1a1a1a;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.topbar h1{font-size:16px;font-weight:900;color:#ef4444;letter-spacing:-.02em}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.signout{background:none;border:1px solid #222;border-radius:8px;color:#555;font-size:12px;cursor:pointer;padding:5px 12px;font-family:inherit;width:auto}
+.signout:hover{border-color:#ef4444;color:#ef4444}
+.wrap{max-width:1200px;margin:0 auto;padding:24px 20px;display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
+.sidebar{display:flex;flex-direction:column;gap:4px;position:sticky;top:76px}
+.nav-btn{background:none;border:none;color:#555;font-family:inherit;font-size:13px;text-align:left;padding:9px 14px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;width:100%}
+.nav-btn:hover{background:#111;color:#f0ede8}
+.nav-btn.active{background:#1a0000;color:#ef4444;font-weight:600}
+.badge{background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;margin-left:auto}
+.main{}
+.section{display:none}
+.section.active{display:block}
+h2{font-size:20px;font-weight:900;margin-bottom:4px}
+.sub{color:#444;font-size:13px;margin-bottom:20px}
+.card{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:16px;margin-bottom:10px}
+.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.card-title{font-weight:700;font-size:14px}
+.card-meta{font-size:12px;color:#444;margin-top:2px}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-right:4px}
+.tag-red{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.tag-yellow{background:rgba(232,197,71,.1);color:#e8c547;border:1px solid rgba(232,197,71,.2)}
+.tag-green{background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.2)}
+.tag-gray{background:#1a1a1a;color:#555;border:1px solid #222}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.btn-red{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-red:hover{background:rgba(239,68,68,.2)}
+.btn-gray{background:#1a1a1a;border:1px solid #222;color:#666;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-gray:hover{background:#222;color:#aaa}
+.btn-green{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#22c55e;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.btn-green:hover{background:rgba(34,197,94,.2)}
+.empty{text-align:center;padding:40px;color:#333;font-size:14px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+.stat{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:16px;text-align:center}
+.stat-num{font-size:28px;font-weight:900;color:#ef4444}
+.stat-label{font-size:11px;color:#444;margin-top:4px}
+.input-row{display:flex;gap:8px;margin-bottom:16px}
+.input-row input{margin:0;flex:1}
+.input-row button{width:auto;padding:10px 16px;border-radius:8px;font-size:13px}
+.ban-list{display:flex;flex-direction:column;gap:6px}
+.ban-item{background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
+.ban-item span{font-size:13px;color:#aaa;font-family:monospace}
+textarea{width:100%;background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:10px 14px;color:#f0ede8;font-family:inherit;font-size:13px;resize:vertical;outline:none;min-height:80px}
+textarea:focus{border-color:#ef4444}
+.resolve-btn{font-size:11px}
+select{background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:8px 12px;color:#f0ede8;font-family:inherit;font-size:13px;outline:none;cursor:pointer}
+.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filter-row input{margin:0;flex:1;min-width:160px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login" id="loginScreen">
+  <div class="login-box">
+    <h1>🔐 DAYWORK ADMIN</h1>
+    <p>Restricted access — authorized personnel only</p>
+    <div class="err" id="loginErr"></div>
+    <input type="text" id="adminUser" placeholder="Admin username" />
+    <input type="password" id="adminPass" placeholder="Password" />
+    <button onclick="doLogin()">Access Dashboard →</button>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="topbar">
+    <h1>⚡ DAYWORK ADMIN</h1>
+    <div class="topbar-right">
+      <span style="font-size:12px;color:#333" id="connStatus">Connecting…</span>
+      <button class="signout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="sidebar">
+      <button class="nav-btn active" onclick="showSection('overview')" id="nav-overview">📊 Overview</button>
+      <button class="nav-btn" onclick="showSection('reports')" id="nav-reports">🚨 Reports <span class="badge" id="reportBadge">0</span></button>
+      <button class="nav-btn" onclick="showSection('bans')" id="nav-bans">🚫 Bans</button>
+      <button class="nav-btn" onclick="showSection('jobs')" id="nav-jobs">📋 All Jobs</button>
+      <button class="nav-btn" onclick="showSection('users')" id="nav-users">👥 Users</button>
+      <button class="nav-btn" onclick="showSection('errors')" id="nav-errors">⚠️ Errors <span class="badge" id="errorBadge">0</span></button>
+    </div>
+    <div class="main">
+      <!-- OVERVIEW -->
+      <div class="section active" id="sec-overview">
+        <h2>Overview</h2>
+        <p class="sub">System health and key metrics</p>
+        <div class="stats-grid">
+          <div class="stat"><div class="stat-num" id="statJobs">0</div><div class="stat-label">Active Jobs</div></div>
+          <div class="stat"><div class="stat-num" id="statUsers">0</div><div class="stat-label">Users</div></div>
+          <div class="stat"><div class="stat-num" id="statReports">0</div><div class="stat-label">Pending Reports</div></div>
+          <div class="stat"><div class="stat-num" id="statBans">0</div><div class="stat-label">Banned</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🟢 Server Status</div>
+          <div class="card-meta" id="serverStatus">Connected via WebSocket</div>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 Recent Activity</div>
+          <div id="recentActivity" style="margin-top:10px;font-size:13px;color:#444">Loading…</div>
+        </div>
+      </div>
+
+      <!-- REPORTS -->
+      <div class="section" id="sec-reports">
+        <h2>User Reports</h2>
+        <p class="sub">Reports submitted by users — review and take action</p>
+        <div id="reportsList"><div class="empty">No reports yet</div></div>
+      </div>
+
+      <!-- BANS -->
+      <div class="section" id="sec-bans">
+        <h2>Bans</h2>
+        <p class="sub">Block users by username or IP address</p>
+        <div style="margin-bottom:24px">
+          <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin-bottom:8px">BAN BY USERNAME</div>
+          <div class="input-row">
+            <input type="text" id="banUserInput" placeholder="e.g. BadUser123" />
+            <input type="text" id="banUserReason" placeholder="Reason (optional)" />
+            <button onclick="banUser()" style="background:#ef4444;border-radius:8px;font-size:13px">Ban User</button>
+          </div>
+          <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin-bottom:8px;margin-top:16px">BAN BY IP ADDRESS</div>
+          <div class="input-row">
+            <input type="text" id="banIPInput" placeholder="e.g. 192.168.1.100" />
+            <input type="text" id="banIPReason" placeholder="Reason (optional)" />
+            <button onclick="banIP()" style="background:#ef4444;border-radius:8px;font-size:13px">Ban IP</button>
+          </div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin-bottom:8px">BANNED USERS</div>
+        <div class="ban-list" id="bannedUsersList"><div class="empty">No banned users</div></div>
+        <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin:16px 0 8px">BANNED IPs</div>
+        <div class="ban-list" id="bannedIPsList"><div class="empty">No banned IPs</div></div>
+      </div>
+
+      <!-- JOBS -->
+      <div class="section" id="sec-jobs">
+        <h2>All Jobs</h2>
+        <p class="sub">Review, edit, or remove any job listing</p>
+        <div class="filter-row">
+          <input type="text" id="jobSearch" placeholder="🔍 Search jobs…" oninput="renderJobs()" />
+          <select id="jobFilter" onchange="renderJobs()">
+            <option value="all">All Jobs</option>
+            <option value="active">Active</option>
+            <option value="flagged">Flagged</option>
+          </select>
+        </div>
+        <div id="jobsList"></div>
+      </div>
+
+      <!-- USERS -->
+      <div class="section" id="sec-users">
+        <h2>Users</h2>
+        <p class="sub">View all registered users and manage accounts</p>
+        <div class="filter-row">
+          <input type="text" id="userSearch" placeholder="🔍 Search users…" oninput="renderUsers()" />
+        </div>
+        <div id="usersList"></div>
+      </div>
+
+      <!-- ERRORS -->
+      <div class="section" id="sec-errors">
+        <h2>Error Reports</h2>
+        <p class="sub">Errors automatically reported by the app</p>
+        <div style="margin-bottom:16px">
+          <button class="btn-gray" onclick="clearErrors()">Clear All Errors</button>
+        </div>
+        <div id="errorsList"><div class="empty">No errors reported</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────
+const ADMIN_USER = 'admin';
+const ADMIN_PASS = 'daywork2024!'; // Change this!
+
+// ── STATE ──────────────────────────────────────────────────────
+let db = { jobs:[], ratings:{}, chats:{} };
+let adminData = {
+  reports: [],
+  bannedUsers: [],
+  bannedIPs: [],
+  errors: [],
+  flaggedJobs: []
+};
+let ws = null;
+let loggedIn = false;
+
+// Load persisted admin data
+function loadAdminData() {
+  try {
+    const saved = localStorage.getItem('dw_adminData');
+    if(saved) adminData = {...adminData, ...JSON.parse(saved)};
+  } catch(e) {}
+}
+function saveAdminData() {
+  localStorage.setItem('dw_adminData', JSON.stringify(adminData));
+}
+loadAdminData();
+
+// ── LOGIN ──────────────────────────────────────────────────────
+function doLogin() {
+  const u = document.getElementById('adminUser').value.trim();
+  const p = document.getElementById('adminPass').value;
+  if(u === ADMIN_USER && p === ADMIN_PASS) {
+    loggedIn = true;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    connectWS();
+    renderAll();
+  } else {
+    document.getElementById('loginErr').textContent = 'Invalid credentials.';
+  }
+}
+document.addEventListener('keydown', e => {
+  if(e.key === 'Enter' && !loggedIn) doLogin();
+});
+
+function doLogout() {
+  loggedIn = false;
+  if(ws) ws.close();
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// ── WEBSOCKET ──────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host);
+  ws.onopen = () => {
+    document.getElementById('connStatus').textContent = '🟢 Live';
+    document.getElementById('connStatus').style.color = '#22c55e';
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if(msg.type === 'init' && msg.db) {
+      db = msg.db;
+      renderAll();
+    }
+    if(msg.type === 'update') {
+      if(msg.key === 'jobs') db.jobs = msg.val;
+      if(msg.key === 'ratings') db.ratings = msg.val;
+      if(msg.key === 'reports') {
+        adminData.reports = msg.val;
+        saveAdminData();
+      }
+      if(msg.key === 'adminData') {
+        adminData = {...adminData, ...msg.val};
+        saveAdminData();
+      }
+      renderAll();
+    }
+  };
+  ws.onclose = () => {
+    document.getElementById('connStatus').textContent = '🔴 Disconnected';
+    document.getElementById('connStatus').style.color = '#ef4444';
+    setTimeout(connectWS, 3000);
+  };
+}
+
+// ── NAV ────────────────────────────────────────────────────────
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+}
+
+// ── RENDER ALL ─────────────────────────────────────────────────
+function renderAll() {
+  renderStats();
+  renderReports();
+  renderBans();
+  renderJobs();
+  renderUsers();
+  renderErrors();
+  renderActivity();
+}
+
+// ── STATS ──────────────────────────────────────────────────────
+function renderStats() {
+  const pendingReports = adminData.reports.filter(r => r.status === 'pending').length;
+  document.getElementById('statJobs').textContent = (db.jobs||[]).length;
+  document.getElementById('statUsers').textContent = Object.keys(db.ratings||{}).length;
+  document.getElementById('statReports').textContent = pendingReports;
+  document.getElementById('statBans').textContent = (adminData.bannedUsers||[]).length + (adminData.bannedIPs||[]).length;
+  document.getElementById('reportBadge').textContent = pendingReports;
+  document.getElementById('errorBadge').textContent = (adminData.errors||[]).length;
+}
+
+// ── ACTIVITY ───────────────────────────────────────────────────
+function renderActivity() {
+  const el = document.getElementById('recentActivity');
+  const jobs = (db.jobs||[]).slice(-5).reverse();
+  if(!jobs.length) { el.textContent = 'No recent activity'; return; }
+  el.innerHTML = '';
+  jobs.forEach(j => {
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:6px 0;border-bottom:1px solid #1a1a1a;display:flex;justify-content:space-between';
+    row.innerHTML = `<span style="color:#aaa">${j.title}</span><span style="color:#444;font-size:11px">by ${j.postedBy}</span>`;
+    el.appendChild(row);
+  });
+}
+
+// ── REPORTS ────────────────────────────────────────────────────
+function renderReports() {
+  const el = document.getElementById('reportsList');
+  const reports = adminData.reports || [];
+  if(!reports.length) { el.innerHTML = '<div class="empty">📭 No reports yet</div>'; return; }
+  el.innerHTML = '';
+  reports.forEach((r, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-title">🚨 Report #${i+1} — ${r.reportedUser || 'Unknown'}</div>
+          <div class="card-meta">By: ${r.reporter || 'Anonymous'} · ${r.date || ''}</div>
+        </div>
+        <span class="tag ${r.status==='resolved'?'tag-green':r.status==='dismissed'?'tag-gray':'tag-red'}">${r.status||'pending'}</span>
+      </div>
+      <div style="font-size:13px;color:#aaa;margin:8px 0;background:#0a0a0a;padding:8px 10px;border-radius:6px">${r.reason || 'No reason given'}</div>
+      <div class="actions">
+        <button class="btn-red" onclick="banUserFromReport(${i})">🚫 Ban User</button>
+        <button class="btn-green resolve-btn" onclick="resolveReport(${i},'resolved')">✓ Resolve</button>
+        <button class="btn-gray resolve-btn" onclick="resolveReport(${i},'dismissed')">Dismiss</button>
+        <button class="btn-red resolve-btn" onclick="deleteReport(${i})">Delete</button>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+function resolveReport(i, status) {
+  adminData.reports[i].status = status;
+  saveAdminData();
+  renderReports();
+  renderStats();
+}
+function deleteReport(i) {
+  adminData.reports.splice(i, 1);
+  saveAdminData();
+  renderReports();
+  renderStats();
+}
+function banUserFromReport(i) {
+  const r = adminData.reports[i];
+  if(r.reportedUser && !adminData.bannedUsers.find(b=>b.name===r.reportedUser)) {
+    adminData.bannedUsers.push({name:r.reportedUser, reason:'Reported: '+r.reason, date:new Date().toLocaleDateString()});
+    adminData.reports[i].status = 'resolved';
+    saveAdminData();
+    renderAll();
+    alert('User "'+r.reportedUser+'" has been banned.');
+  }
+}
+
+// ── BANS ───────────────────────────────────────────────────────
+function banUser() {
+  const name = document.getElementById('banUserInput').value.trim();
+  const reason = document.getElementById('banUserReason').value.trim();
+  if(!name) return;
+  if(adminData.bannedUsers.find(b=>b.name===name)) { alert('Already banned.'); return; }
+  adminData.bannedUsers.push({name, reason:reason||'No reason given', date:new Date().toLocaleDateString()});
+  document.getElementById('banUserInput').value = '';
+  document.getElementById('banUserReason').value = '';
+  saveAdminData();
+  renderBans();
+  renderStats();
+}
+
+function banIP() {
+  const ip = document.getElementById('banIPInput').value.trim();
+  const reason = document.getElementById('banIPReason').value.trim();
+  if(!ip) return;
+  if(adminData.bannedIPs.find(b=>b.ip===ip)) { alert('Already banned.'); return; }
+  adminData.bannedIPs.push({ip, reason:reason||'No reason given', date:new Date().toLocaleDateString()});
+  document.getElementById('banIPInput').value = '';
+  document.getElementById('banIPReason').value = '';
+  saveAdminData();
+  renderBans();
+  renderStats();
+}
+
+function unbanUser(name) {
+  adminData.bannedUsers = adminData.bannedUsers.filter(b=>b.name!==name);
+  saveAdminData();
+  renderBans();
+  renderStats();
+}
+function unbanIP(ip) {
+  adminData.bannedIPs = adminData.bannedIPs.filter(b=>b.ip!==ip);
+  saveAdminData();
+  renderBans();
+  renderStats();
+}
+
+function renderBans() {
+  const ul = document.getElementById('bannedUsersList');
+  const il = document.getElementById('bannedIPsList');
+  const users = adminData.bannedUsers || [];
+  const ips = adminData.bannedIPs || [];
+
+  if(!users.length) { ul.innerHTML = '<div class="empty">No banned users</div>'; }
+  else {
+    ul.innerHTML = '';
+    users.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'ban-item';
+      row.innerHTML = `<div><span style="color:#ef4444;font-weight:700">${b.name}</span> <span style="color:#333;font-size:11px;margin-left:8px">${b.reason}</span> <span style="color:#222;font-size:11px;margin-left:8px">${b.date}</span></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn-green';
+      btn.style.fontSize = '11px';
+      btn.textContent = 'Unban';
+      btn.onclick = () => unbanUser(b.name);
+      row.appendChild(btn);
+      ul.appendChild(row);
+    });
+  }
+
+  if(!ips.length) { il.innerHTML = '<div class="empty">No banned IPs</div>'; }
+  else {
+    il.innerHTML = '';
+    ips.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'ban-item';
+      row.innerHTML = `<div><span style="font-family:monospace;color:#ef4444">${b.ip}</span> <span style="color:#333;font-size:11px;margin-left:8px">${b.reason}</span> <span style="color:#222;font-size:11px;margin-left:8px">${b.date}</span></div>`;
+      const btn = document.createElement('button');
+      btn.className = 'btn-green';
+      btn.style.fontSize = '11px';
+      btn.textContent = 'Unban';
+      btn.onclick = () => unbanIP(b.ip);
+      row.appendChild(btn);
+      il.appendChild(row);
+    });
+  }
+}
+
+// ── JOBS ───────────────────────────────────────────────────────
+function renderJobs() {
+  const el = document.getElementById('jobsList');
+  const q = (document.getElementById('jobSearch').value||'').toLowerCase();
+  const filter = document.getElementById('jobFilter').value;
+  let jobs = db.jobs || [];
+  if(q) jobs = jobs.filter(j => j.title.toLowerCase().includes(q) || (j.postedBy||'').toLowerCase().includes(q));
+  if(filter === 'flagged') jobs = jobs.filter(j => adminData.flaggedJobs.includes(j.id));
+  if(!jobs.length) { el.innerHTML = '<div class="empty">No jobs found</div>'; return; }
+  el.innerHTML = '';
+  jobs.forEach(j => {
+    const flagged = adminData.flaggedJobs.includes(j.id);
+    const expired = j.expiresAt && j.expiresAt < Date.now();
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-title">${j.title} ${j.urgent?'🔴':''}</div>
+          <div class="card-meta">By: ${j.postedBy} · ${j.location||''} · $${j.pay} · ${j.applicants?.length||0} applicants</div>
+        </div>
+        <div>
+          ${flagged?'<span class="tag tag-red">Flagged</span>':''}
+          ${expired?'<span class="tag tag-gray">Expired</span>':'<span class="tag tag-green">Active</span>'}
+        </div>
+      </div>
+      ${j.description?`<div style="font-size:12px;color:#555;margin:4px 0">${j.description.slice(0,100)}${j.description.length>100?'…':''}</div>`:''}
+      <div class="actions">
+        <button class="btn-red" onclick="removeJob(${j.id})">🗑 Remove Job</button>
+        <button class="btn-${flagged?'green':'gray'}" onclick="toggleFlag(${j.id})">${flagged?'✓ Unflag':'⚑ Flag'}</button>
+        <button class="btn-gray" onclick="banUser2('${j.postedBy}')">🚫 Ban Poster</button>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+function removeJob(id) {
+  if(!confirm('Remove this job listing?')) return;
+  if(ws && ws.readyState === 1) {
+    const newJobs = (db.jobs||[]).filter(j=>j.id!==id);
+    ws.send(JSON.stringify({type:'set', key:'jobs', val:newJobs}));
+    db.jobs = newJobs;
+  }
+  renderJobs();
+}
+function toggleFlag(id) {
+  if(adminData.flaggedJobs.includes(id)) adminData.flaggedJobs = adminData.flaggedJobs.filter(f=>f!==id);
+  else adminData.flaggedJobs.push(id);
+  saveAdminData();
+  renderJobs();
+}
+function banUser2(name) {
+  if(!adminData.bannedUsers.find(b=>b.name===name)) {
+    adminData.bannedUsers.push({name, reason:'Banned by admin from job', date:new Date().toLocaleDateString()});
+    saveAdminData();
+    renderBans();
+    renderStats();
+    alert('User "'+name+'" banned.');
+  } else { alert('Already banned.'); }
+}
+
+// ── USERS ──────────────────────────────────────────────────────
+function renderUsers() {
+  const el = document.getElementById('usersList');
+  const q = (document.getElementById('userSearch').value||'').toLowerCase();
+  // Derive users from jobs and ratings
+  const names = new Set();
+  (db.jobs||[]).forEach(j => { names.add(j.postedBy); j.applicants?.forEach(a=>names.add(a.name)); });
+  Object.keys(db.ratings||{}).forEach(n=>names.add(n));
+  let users = [...names].filter(Boolean);
+  if(q) users = users.filter(u=>u.toLowerCase().includes(q));
+  if(!users.length) { el.innerHTML = '<div class="empty">No users found</div>'; return; }
+  el.innerHTML = '';
+  users.forEach(name => {
+    const banned = adminData.bannedUsers.find(b=>b.name===name);
+    const rating = db.ratings?.[name];
+    const jobCount = (db.jobs||[]).filter(j=>j.postedBy===name).length;
+    const appCount = (db.jobs||[]).reduce((n,j)=>n+(j.applicants||[]).filter(a=>a.name===name).length,0);
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:36px;height:36px;border-radius:50%;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555;flex-shrink:0">${name.charAt(0)}</div>
+          <div>
+            <div class="card-title">${name}</div>
+            <div class="card-meta">${jobCount} jobs posted · ${appCount} applications · ${rating?'⭐ '+rating.avg.toFixed(1)+' ('+rating.count+')':'No ratings'}</div>
+          </div>
+        </div>
+        ${banned?'<span class="tag tag-red">Banned</span>':'<span class="tag tag-green">Active</span>'}
+      </div>
+      <div class="actions">
+        ${banned
+          ? `<button class="btn-green" onclick="unbanUser('${name}')">✓ Unban</button>`
+          : `<button class="btn-red" onclick="banUser2('${name}')">🚫 Ban User</button>`
+        }
+        <button class="btn-gray" onclick="viewUserJobs('${name}')">📋 View Jobs</button>
+      </div>`;
+    el.appendChild(card);
+  });
+}
+
+function viewUserJobs(name) {
+  document.getElementById('jobSearch').value = name;
+  showSection('jobs');
+  renderJobs();
+}
+
+// ── ERRORS ─────────────────────────────────────────────────────
+function renderErrors() {
+  const el = document.getElementById('errorsList');
+  const errors = adminData.errors || [];
+  if(!errors.length) { el.innerHTML = '<div class="empty">✅ No errors reported</div>'; return; }
+  el.innerHTML = '';
+  errors.forEach((err, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-header">
+        <div>
+          <div class="card-title" style="color:#ef4444">⚠️ Error #${i+1}</div>
+          <div class="card-meta">${err.date||''} · ${err.user||'Unknown user'}</div>
+        </div>
+        <button class="btn-gray resolve-btn" onclick="deleteError(${i})">Dismiss</button>
+      </div>
+      <pre style="font-size:11px;color:#666;margin-top:8px;background:#0a0a0a;padding:8px;border-radius:6px;overflow-x:auto;white-space:pre-wrap">${err.message||''}</pre>`;
+    el.appendChild(card);
+  });
+}
+
+function deleteError(i) {
+  adminData.errors.splice(i, 1);
+  saveAdminData();
+  renderErrors();
+  renderStats();
+}
+function clearErrors() {
+  if(!confirm('Clear all error logs?')) return;
+  adminData.errors = [];
+  saveAdminData();
+  renderErrors();
+  renderStats();
+}
+
+// ── MANUAL REPORT SUBMISSION (from main app) ───────────────────
+// The main app can post reports here via the server
+window.addEventListener('storage', e => {
+  if(e.key === 'dw_newReport') {
+    try {
+      const r = JSON.parse(e.newValue);
+      adminData.reports.push({...r, status:'pending', date:new Date().toLocaleDateString()});
+      saveAdminData();
+      renderReports();
+      renderStats();
+    } catch(err) {}
+  }
+});
+</script>
+</body>
+</html>
