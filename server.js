@@ -94,7 +94,7 @@ const server = http.createServer((req, res) => {
   if(url === '/landing' || url === '/landing.html') {
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
-      res.end(fs.readFileSync(path.join(__dirname,'public','landing.html')));
+      res.end(fs.readFileSync(path.join(__dirname,'landing.html')));
     } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
     return;
   }
@@ -102,15 +102,21 @@ const server = http.createServer((req, res) => {
   if(url === '/admin') {
     try {
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      res.end(fs.readFileSync(path.join(__dirname,'public','admin.html')));
+      res.end(fs.readFileSync(path.join(__dirname,'admin.html')));
     } catch(e) { res.writeHead(500); res.end('Admin error: '+e.message); }
     return;
   }
 
-  if(url === '/' || url === '/index.html') {
+  if(url === '/') {
+    res.writeHead(302, {'Location':'/landing'});
+    res.end();
+    return;
+  }
+
+  if(url === '/index.html' || url === '/app') {
     try {
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      res.end(fs.readFileSync(path.join(__dirname,'public','index.html')));
+      res.end(fs.readFileSync(path.join(__dirname,'index.html')));
     } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
     return;
   }
