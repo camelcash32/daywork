@@ -3,617 +3,561 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>⚡ DAYWORK ADMIN</title>
+<title>DAYWORK MOD</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#080808;color:#f0ede8;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh}
-.login{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.login-box{background:#111;border:1px solid #1e1e1e;border-radius:16px;padding:32px;width:100%;max-width:360px}
-.login-box h1{color:#ef4444;font-size:24px;margin-bottom:4px}
-.login-box p{color:#444;font-size:13px;margin-bottom:24px}
-input{width:100%;background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:10px 14px;color:#f0ede8;font-family:inherit;font-size:14px;margin-bottom:12px;outline:none}
-input:focus{border-color:#ef4444}
-button{width:100%;background:#ef4444;color:#fff;border:none;border-radius:8px;padding:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
-button:hover{background:#dc2626}
-.err{color:#ef4444;font-size:13px;margin-bottom:10px;min-height:18px}
-
-/* Dashboard */
-#dashboard{display:none}
-.topbar{background:#0f0f0f;border-bottom:1px solid #1a1a1a;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
-.topbar h1{font-size:16px;font-weight:900;color:#ef4444;letter-spacing:-.02em}
+:root{--bg:#060608;--bg2:#0d0d12;--bg3:#12121a;--border:#1c1c28;--border2:#252535;--text:#e8e6f0;--muted:#4a4a6a;--accent:#ff3b5c;--accent2:#7b5cff;--green:#00e87a;--yellow:#ffd60a}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+#loginWrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);position:relative;overflow:hidden}
+#loginWrap::before{content:'MOD';position:absolute;font-size:30vw;font-weight:900;color:rgba(255,59,92,.03);pointer-events:none}
+.login-card{background:var(--bg2);border:1px solid var(--border2);border-radius:16px;padding:40px;width:100%;max-width:380px;position:relative;z-index:1}
+.login-logo{font-size:40px;text-align:center;margin-bottom:8px}
+.login-card h1{font-size:11px;font-weight:700;letter-spacing:.2em;color:var(--accent);margin-bottom:4px}
+.field-lbl{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;color:#444;margin-bottom:5px}
+.login-card h2{font-size:28px;font-weight:900;margin-bottom:24px}
+.field input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:12px 16px;color:var(--text);font-family:'Syne',sans-serif;font-size:14px;outline:none;margin-bottom:12px;transition:border-color .2s}
+.field input:focus{border-color:var(--accent)}
+.login-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:10px;padding:13px;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;cursor:pointer}
+.login-err{color:var(--accent);font-size:13px;margin-bottom:10px;min-height:18px}
+#shell{display:none;min-height:100vh}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;position:sticky;top:0;z-index:200}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-tag{font-size:10px;letter-spacing:.2em;font-weight:700;color:var(--accent);background:rgba(255,59,92,.1);border:1px solid rgba(255,59,92,.2);padding:3px 8px;border-radius:4px}
+.brand-name{font-size:15px;font-weight:900}
 .topbar-right{display:flex;align-items:center;gap:12px}
-.signout{background:none;border:1px solid #222;border-radius:8px;color:#555;font-size:12px;cursor:pointer;padding:5px 12px;font-family:inherit;width:auto}
-.signout:hover{border-color:#ef4444;color:#ef4444}
-.wrap{max-width:1200px;margin:0 auto;padding:24px 20px;display:grid;grid-template-columns:220px 1fr;gap:20px;align-items:start}
-.sidebar{display:flex;flex-direction:column;gap:4px;position:sticky;top:76px}
-.nav-btn{background:none;border:none;color:#555;font-family:inherit;font-size:13px;text-align:left;padding:9px 14px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;width:100%}
-.nav-btn:hover{background:#111;color:#f0ede8}
-.nav-btn.active{background:#1a0000;color:#ef4444;font-weight:600}
-.badge{background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;margin-left:auto}
-.main{}
-.section{display:none}
-.section.active{display:block}
-h2{font-size:20px;font-weight:900;margin-bottom:4px}
-.sub{color:#444;font-size:13px;margin-bottom:20px}
-.card{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:16px;margin-bottom:10px}
-.card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.card-title{font-weight:700;font-size:14px}
-.card-meta{font-size:12px;color:#444;margin-top:2px}
-.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-right:4px}
-.tag-red{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
-.tag-yellow{background:rgba(232,197,71,.1);color:#e8c547;border:1px solid rgba(232,197,71,.2)}
-.tag-green{background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.2)}
-.tag-gray{background:#1a1a1a;color:#555;border:1px solid #222}
-.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.btn-red{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
-.btn-red:hover{background:rgba(239,68,68,.2)}
-.btn-gray{background:#1a1a1a;border:1px solid #222;color:#666;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
-.btn-gray:hover{background:#222;color:#aaa}
-.btn-green{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#22c55e;border-radius:7px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
-.btn-green:hover{background:rgba(34,197,94,.2)}
-.empty{text-align:center;padding:40px;color:#333;font-size:14px}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
-.stat{background:#111;border:1px solid #1e1e1e;border-radius:12px;padding:16px;text-align:center}
-.stat-num{font-size:28px;font-weight:900;color:#ef4444}
-.stat-label{font-size:11px;color:#444;margin-top:4px}
-.input-row{display:flex;gap:8px;margin-bottom:16px}
-.input-row input{margin:0;flex:1}
-.input-row button{width:auto;padding:10px 16px;border-radius:8px;font-size:13px}
-.ban-list{display:flex;flex-direction:column;gap:6px}
-.ban-item{background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center}
-.ban-item span{font-size:13px;color:#aaa;font-family:monospace}
-textarea{width:100%;background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:10px 14px;color:#f0ede8;font-family:inherit;font-size:13px;resize:vertical;outline:none;min-height:80px}
-textarea:focus{border-color:#ef4444}
-.resolve-btn{font-size:11px}
-select{background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:8px 12px;color:#f0ede8;font-family:inherit;font-size:13px;outline:none;cursor:pointer}
-.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
-.filter-row input{margin:0;flex:1;min-width:160px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.dot.live{background:var(--green);box-shadow:0 0 8px var(--green)}
+.conn{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.so-btn{background:none;border:1px solid var(--border2);border-radius:8px;color:var(--muted);font-size:12px;cursor:pointer;padding:5px 12px;font-family:'Syne',sans-serif}
+.so-btn:hover{border-color:var(--accent);color:var(--accent)}
+.layout{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 52px)}
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px;position:sticky;top:52px;height:calc(100vh - 52px);overflow-y:auto}
+.nl{font-size:10px;letter-spacing:.12em;color:var(--muted);padding:14px 12px 4px;font-weight:700}
+.ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);border:none;background:none;font-family:'Syne',sans-serif;width:100%;text-align:left;transition:all .15s}
+.ni:hover{background:var(--bg3);color:var(--text)}
+.ni.on{background:rgba(255,59,92,.1);color:var(--accent);border-left:2px solid var(--accent)}
+.ni .ic{font-size:15px;width:20px;text-align:center}
+.nb{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;min-width:18px;text-align:center}
+.nb.yl{background:var(--yellow);color:#000}
+.main{padding:28px;overflow-y:auto}
+.pg{display:none}.pg.on{display:block}
+.ph{margin-bottom:22px}.ph h2{font-size:24px;font-weight:900;margin-bottom:4px}.ph p{font-size:13px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:22px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px}
+.sv{font-size:32px;font-weight:900;line-height:1;margin-bottom:4px}
+.sv.r{color:var(--accent)}.sv.g{color:var(--green)}.sv.y{color:var(--yellow)}.sv.p{color:var(--accent2)}
+.sl{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.06em}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px}
+.ct{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.ctit{font-size:14px;font-weight:700}
+.cm{font-size:12px;color:var(--muted);margin-top:3px;font-family:'JetBrains Mono',monospace}
+.cb{font-size:13px;color:#aaa;background:var(--bg3);border-radius:8px;padding:10px 12px;margin-bottom:10px;line-height:1.5}
+.ca{display:flex;gap:6px;flex-wrap:wrap}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.tr{background:rgba(255,59,92,.15);color:var(--accent);border:1px solid rgba(255,59,92,.3)}
+.tg{background:rgba(0,232,122,.1);color:var(--green);border:1px solid rgba(0,232,122,.2)}
+.ty{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
+.tp{background:rgba(123,92,255,.15);color:var(--accent2);border:1px solid rgba(123,92,255,.3)}
+.tgr{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.btn{border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;white-space:nowrap}
+.br{background:rgba(255,59,92,.15);color:var(--accent);border:1px solid rgba(255,59,92,.3)}
+.bg{background:rgba(0,232,122,.1);color:var(--green);border:1px solid rgba(0,232,122,.2)}
+.by{background:rgba(255,214,10,.1);color:var(--yellow);border:1px solid rgba(255,214,10,.2)}
+.bp{background:rgba(123,92,255,.15);color:var(--accent2);border:1px solid rgba(123,92,255,.3)}
+.bgr{background:var(--bg3);color:var(--muted);border:1px solid var(--border2)}
+.bsr{background:var(--accent);color:#fff;border:1px solid var(--accent)}
+.inp{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:border-color .2s;width:100%}
+.inp:focus{border-color:var(--accent2)}
+select.inp{cursor:pointer}
+.ir{display:flex;gap:8px;margin-bottom:10px;align-items:center}
+.ir .inp{flex:1}
+lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;display:block;margin-bottom:6px}
+.bi{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:6px}
+.bn{font-size:13px;font-weight:700;color:var(--accent);font-family:'JetBrains Mono',monospace}
+.brs{font-size:11px;color:var(--muted)}
+.le{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.le:last-child{border:none}
+.lt{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;flex-shrink:0;margin-top:2px}
+.la{font-size:12px;font-weight:700;flex-shrink:0;width:110px}
+.la.banUser,.la.banIP,.la.removeJob{color:var(--accent)}
+.la.warnUser,.la.flagJob,.la.addWordFilter{color:var(--yellow)}
+.la.unbanUser,.la.unbanIP,.la.unflagJob,.la.resolveReport{color:var(--green)}
+.la.system,.la.clearErrors,.la.toggleAutoFlag{color:var(--muted)}
+.la.report{color:var(--accent2)}
+.ld{font-size:12px;color:#aaa;flex:1}
+.wc{display:inline-flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 10px;margin:3px;font-size:12px;font-family:'JetBrains Mono',monospace}
+.wc button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0}
+.wc button:hover{color:var(--accent)}
+.sw{display:flex;align-items:center;gap:10px}
+.swt{width:40px;height:22px;border-radius:999px;background:var(--border2);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.swt.on{background:var(--green)}
+.swth{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s}
+.swt.on .swth{left:21px}
+.fb{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.fb .inp{flex:1;min-width:180px}
+.av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#fff;flex-shrink:0}
+.emp{text-align:center;padding:40px 20px;color:var(--muted)}
+.emp-i{font-size:36px;margin-bottom:10px}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:12px 18px;font-size:13px;font-weight:600;z-index:9999;transform:translateY(80px);opacity:0;transition:all .3s}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.r{border-color:rgba(255,59,92,.4);color:var(--accent)}
+.toast.g{border-color:rgba(0,232,122,.3);color:var(--green)}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
-<div class="login" id="loginScreen">
-  <div class="login-box">
-    <h1>🔐 DAYWORK ADMIN</h1>
-    <p>Restricted access — authorized personnel only</p>
-    <div class="err" id="loginErr"></div>
-    <input type="text" id="adminUser" placeholder="Admin username" />
-    <input type="password" id="adminPass" placeholder="Password" />
-    <button onclick="doLogin()">Access Dashboard →</button>
+<div id="loginWrap">
+  <!-- LOGIN VIEW -->
+  <div class="login-card" id="viewLogin">
+    <div class="login-logo">⚡</div>
+    <h1>DAYWORK</h1>
+    <h2>Moderation<br>Dashboard</h2>
+    <div class="login-err" id="loginErr"></div>
+    <div class="field">
+      <label class="field-lbl">USERNAME</label>
+      <input type="text" id="aUser" placeholder="Admin username" autocomplete="off"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">PASSWORD</label>
+      <div style="position:relative">
+        <input type="password" id="aPass" placeholder="Password" style="padding-right:42px"/>
+        <span id="togglePw" onclick="togglePassword()" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:16px;color:#555;user-select:none">👁</span>
+      </div>
+    </div>
+    <button class="login-btn" onclick="doLogin()">Enter Dashboard →</button>
+    <div style="text-align:center;margin-top:14px">
+      <span style="font-size:13px;color:#444;cursor:pointer;text-decoration:underline" onclick="showView('viewForgot')">Forgot password?</span>
+    </div>
+  </div>
+
+  <!-- FORGOT PASSWORD VIEW -->
+  <div class="login-card" id="viewForgot" style="display:none">
+    <div class="login-logo">🔑</div>
+    <h1>DAYWORK</h1>
+    <h2>Reset<br>Password</h2>
+    <div class="login-err" id="forgotErr"></div>
+    <div class="field">
+      <label class="field-lbl">USERNAME</label>
+      <input type="text" id="fUser" placeholder="Your admin username"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">RECOVERY CODE</label>
+      <input type="text" id="fCode" placeholder="Enter recovery code"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">NEW PASSWORD</label>
+      <input type="password" id="fNewPw" placeholder="New password"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">CONFIRM PASSWORD</label>
+      <input type="password" id="fConfirm" placeholder="Confirm new password"/>
+    </div>
+    <button class="login-btn" onclick="doReset()">Reset Password →</button>
+    <div style="text-align:center;margin-top:14px">
+      <span style="font-size:13px;color:#444;cursor:pointer;text-decoration:underline" onclick="showView('viewLogin')">← Back to login</span>
+    </div>
+  </div>
+
+  <!-- ADD ADMIN VIEW (only accessible after login) -->
+  <div class="login-card" id="viewAddAdmin" style="display:none">
+    <div class="login-logo">👤</div>
+    <h1>DAYWORK</h1>
+    <h2>Add Admin<br>Account</h2>
+    <div class="login-err" id="addErr"></div>
+    <div class="field">
+      <label class="field-lbl">OWNER PASSWORD</label>
+      <input type="password" id="ownerPw" placeholder="Your owner password"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">NEW USERNAME</label>
+      <input type="text" id="newAdminUser" placeholder="New admin username"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">NEW PASSWORD</label>
+      <input type="password" id="newAdminPw" placeholder="New admin password"/>
+    </div>
+    <div class="field">
+      <label class="field-lbl">ROLE</label>
+      <select id="newAdminRole" style="width:100%;background:#0a0a0a;border:1px solid #222;border-radius:10px;padding:12px 16px;color:#f0ede8;font-family:inherit;font-size:14px;outline:none">
+        <option value="admin">Admin</option>
+        <option value="moderator">Moderator</option>
+      </select>
+    </div>
+    <button class="login-btn" onclick="doAddAdmin()">Add Admin →</button>
+    <div style="text-align:center;margin-top:14px">
+      <span style="font-size:13px;color:#444;cursor:pointer;text-decoration:underline" onclick="hideAddAdmin()">← Cancel</span>
+    </div>
   </div>
 </div>
 
-<!-- DASHBOARD -->
-<div id="dashboard">
+<div id="shell">
   <div class="topbar">
-    <h1>⚡ DAYWORK ADMIN</h1>
+    <div class="brand"><span class="brand-tag">MOD</span><span class="brand-name">⚡ DAYWORK</span></div>
     <div class="topbar-right">
-      <span style="font-size:12px;color:#333" id="connStatus">Connecting…</span>
-      <button class="signout" onclick="doLogout()">Sign Out</button>
+      <div class="dot" id="D"></div>
+      <span class="conn" id="CT">Connecting…</span>
+      <button class="so-btn" onclick="doLogout()">Sign Out</button>
     </div>
   </div>
-  <div class="wrap">
-    <div class="sidebar">
-      <button class="nav-btn active" onclick="showSection('overview')" id="nav-overview">📊 Overview</button>
-      <button class="nav-btn" onclick="showSection('reports')" id="nav-reports">🚨 Reports <span class="badge" id="reportBadge">0</span></button>
-      <button class="nav-btn" onclick="showSection('bans')" id="nav-bans">🚫 Bans</button>
-      <button class="nav-btn" onclick="showSection('jobs')" id="nav-jobs">📋 All Jobs</button>
-      <button class="nav-btn" onclick="showSection('users')" id="nav-users">👥 Users</button>
-      <button class="nav-btn" onclick="showSection('errors')" id="nav-errors">⚠️ Errors <span class="badge" id="errorBadge">0</span></button>
-    </div>
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="nl">OVERVIEW</div>
+      <button class="ni on" onclick="go('ov')" id="n-ov"><span class="ic">📊</span>Dashboard</button>
+      <button class="ni" onclick="go('log')" id="n-log"><span class="ic">📜</span>Mod Log</button>
+      <button class="ni" onclick="showAddAdmin()" id="n-addadmin" style="color:#22c55e;border:1px solid rgba(34,197,94,.2);margin-top:4px"><span class="ic">➕</span>Add Admin</button>
+      <div class="nl">ACTIONS</div>
+      <button class="ni" onclick="go('rep')" id="n-rep"><span class="ic">🚨</span>Reports<span class="nb" id="b-rep">0</span></button>
+      <button class="ni" onclick="go('ban')" id="n-ban"><span class="ic">🚫</span>Bans & IPs</button>
+      <button class="ni" onclick="go('wrn')" id="n-wrn"><span class="ic">⚠️</span>Warnings</button>
+      <div class="nl">CONTENT</div>
+      <button class="ni" onclick="go('job')" id="n-job"><span class="ic">📋</span>Jobs<span class="nb yl" id="b-job">0</span></button>
+      <button class="ni" onclick="go('usr')" id="n-usr"><span class="ic">👥</span>Users</button>
+      <button class="ni" onclick="go('wf')" id="n-wf"><span class="ic">🔤</span>Word Filter</button>
+      <div class="nl">SYSTEM</div>
+      <button class="ni" onclick="go('err')" id="n-err"><span class="ic">⚠️</span>Errors<span class="nb" id="b-err">0</span></button>
+    </nav>
     <div class="main">
-      <!-- OVERVIEW -->
-      <div class="section active" id="sec-overview">
-        <h2>Overview</h2>
-        <p class="sub">System health and key metrics</p>
-        <div class="stats-grid">
-          <div class="stat"><div class="stat-num" id="statJobs">0</div><div class="stat-label">Active Jobs</div></div>
-          <div class="stat"><div class="stat-num" id="statUsers">0</div><div class="stat-label">Users</div></div>
-          <div class="stat"><div class="stat-num" id="statReports">0</div><div class="stat-label">Pending Reports</div></div>
-          <div class="stat"><div class="stat-num" id="statBans">0</div><div class="stat-label">Banned</div></div>
+
+      <div class="pg on" id="p-ov">
+        <div class="ph"><h2>Dashboard</h2><p>Live moderation overview</p></div>
+        <div class="stats">
+          <div class="stat"><div class="sv g" id="s-job">0</div><div class="sl">ACTIVE JOBS</div></div>
+          <div class="stat"><div class="sv p" id="s-usr">0</div><div class="sl">USERS</div></div>
+          <div class="stat"><div class="sv r" id="s-rep">0</div><div class="sl">OPEN REPORTS</div></div>
+          <div class="stat"><div class="sv y" id="s-flg">0</div><div class="sl">FLAGGED JOBS</div></div>
+          <div class="stat"><div class="sv r" id="s-ban">0</div><div class="sl">TOTAL BANS</div></div>
         </div>
         <div class="card">
-          <div class="card-title">🟢 Server Status</div>
-          <div class="card-meta" id="serverStatus">Connected via WebSocket</div>
+          <div class="ctit" style="margin-bottom:12px">⚙️ Settings</div>
+          <div class="sw"><div class="swt" id="sw-af" onclick="modCmd('toggleAutoFlag','',{})"><div class="swth"></div></div><span style="font-size:13px">Auto-flag jobs with banned words</span></div>
         </div>
+        <div class="card"><div class="ctit" style="margin-bottom:10px">🕐 Recent Actions</div><div id="R-log"></div></div>
+      </div>
+
+      <div class="pg" id="p-log">
+        <div class="ph"><h2>Mod Log</h2><p>All moderation actions</p></div>
+        <div class="card"><div id="F-log"></div></div>
+      </div>
+
+      <div class="pg" id="p-rep">
+        <div class="ph"><h2>Reports</h2><p>User-submitted reports — take action below</p></div>
+        <div id="REP"></div>
+      </div>
+
+      <div class="pg" id="p-ban">
+        <div class="ph"><h2>Bans</h2><p>Server-enforced — banned users are disconnected immediately</p></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+          <div>
+            <lbl>BAN BY USERNAME</lbl>
+            <div class="ir"><input class="inp" id="BN" placeholder="Username…"/></div>
+            <div class="ir"><input class="inp" id="BR" placeholder="Reason…"/><button class="btn bsr" onclick="banUser()">Ban User</button></div>
+          </div>
+          <div>
+            <lbl>BAN BY IP ADDRESS</lbl>
+            <div class="ir"><input class="inp" id="BI" placeholder="192.168.x.x…" style="font-family:'JetBrains Mono',monospace"/></div>
+            <div class="ir"><input class="inp" id="BIR" placeholder="Reason…"/><button class="btn bsr" onclick="banIP()">Ban IP</button></div>
+          </div>
+        </div>
+        <lbl>BANNED USERS</lbl><div id="BUL" style="margin-bottom:16px"></div>
+        <lbl>BANNED IPs</lbl><div id="BIL"></div>
+      </div>
+
+      <div class="pg" id="p-wrn">
+        <div class="ph"><h2>Warnings</h2><p>Send in-app warnings — user sees alert immediately</p></div>
         <div class="card">
-          <div class="card-title">📋 Recent Activity</div>
-          <div id="recentActivity" style="margin-top:10px;font-size:13px;color:#444">Loading…</div>
+          <lbl>WARN A USER</lbl>
+          <div class="ir"><input class="inp" id="WN" placeholder="Username…"/><input class="inp" id="WM" placeholder="Warning message…"/><button class="btn by" onclick="sendWarn()">Send Warning</button></div>
         </div>
+        <div id="WL"></div>
       </div>
 
-      <!-- REPORTS -->
-      <div class="section" id="sec-reports">
-        <h2>User Reports</h2>
-        <p class="sub">Reports submitted by users — review and take action</p>
-        <div id="reportsList"><div class="empty">No reports yet</div></div>
-      </div>
-
-      <!-- BANS -->
-      <div class="section" id="sec-bans">
-        <h2>Bans</h2>
-        <p class="sub">Block users by username or IP address</p>
-        <div style="margin-bottom:24px">
-          <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin-bottom:8px">BAN BY USERNAME</div>
-          <div class="input-row">
-            <input type="text" id="banUserInput" placeholder="e.g. BadUser123" />
-            <input type="text" id="banUserReason" placeholder="Reason (optional)" />
-            <button onclick="banUser()" style="background:#ef4444;border-radius:8px;font-size:13px">Ban User</button>
-          </div>
-          <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin-bottom:8px;margin-top:16px">BAN BY IP ADDRESS</div>
-          <div class="input-row">
-            <input type="text" id="banIPInput" placeholder="e.g. 192.168.1.100" />
-            <input type="text" id="banIPReason" placeholder="Reason (optional)" />
-            <button onclick="banIP()" style="background:#ef4444;border-radius:8px;font-size:13px">Ban IP</button>
-          </div>
-        </div>
-        <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin-bottom:8px">BANNED USERS</div>
-        <div class="ban-list" id="bannedUsersList"><div class="empty">No banned users</div></div>
-        <div style="font-size:11px;font-weight:700;color:#444;letter-spacing:.08em;margin:16px 0 8px">BANNED IPs</div>
-        <div class="ban-list" id="bannedIPsList"><div class="empty">No banned IPs</div></div>
-      </div>
-
-      <!-- JOBS -->
-      <div class="section" id="sec-jobs">
-        <h2>All Jobs</h2>
-        <p class="sub">Review, edit, or remove any job listing</p>
-        <div class="filter-row">
-          <input type="text" id="jobSearch" placeholder="🔍 Search jobs…" oninput="renderJobs()" />
-          <select id="jobFilter" onchange="renderJobs()">
+      <div class="pg" id="p-job">
+        <div class="ph"><h2>Job Listings</h2><p>Remove violations, flag suspicious content</p></div>
+        <div class="fb">
+          <input class="inp" id="JQ" placeholder="🔍 Search…" oninput="renderJobs()"/>
+          <select class="inp" id="JF" onchange="renderJobs()">
             <option value="all">All Jobs</option>
-            <option value="active">Active</option>
-            <option value="flagged">Flagged</option>
+            <option value="flagged">🚩 Flagged</option>
+            <option value="active">Active Only</option>
           </select>
         </div>
-        <div id="jobsList"></div>
+        <div id="JL"></div>
       </div>
 
-      <!-- USERS -->
-      <div class="section" id="sec-users">
-        <h2>Users</h2>
-        <p class="sub">View all registered users and manage accounts</p>
-        <div class="filter-row">
-          <input type="text" id="userSearch" placeholder="🔍 Search users…" oninput="renderUsers()" />
-        </div>
-        <div id="usersList"></div>
+      <div class="pg" id="p-usr">
+        <div class="ph"><h2>Users</h2><p>All users — ban, warn, or view their activity</p></div>
+        <div class="fb"><input class="inp" id="UQ" placeholder="🔍 Search users…" oninput="renderUsers()"/></div>
+        <div id="UL"></div>
       </div>
 
-      <!-- ERRORS -->
-      <div class="section" id="sec-errors">
-        <h2>Error Reports</h2>
-        <p class="sub">Errors automatically reported by the app</p>
-        <div style="margin-bottom:16px">
-          <button class="btn-gray" onclick="clearErrors()">Clear All Errors</button>
+      <div class="pg" id="p-wf">
+        <div class="ph"><h2>Word Filter</h2><p>Filtered in jobs titles, descriptions and chat messages</p></div>
+        <div class="card">
+          <lbl>ADD WORD OR PHRASE</lbl>
+          <div class="ir"><input class="inp" id="WI" placeholder="e.g. scam"/><button class="btn bsr" onclick="addWord()">Add</button></div>
+          <div id="WC"></div>
         </div>
-        <div id="errorsList"><div class="empty">No errors reported</div></div>
       </div>
+
+      <div class="pg" id="p-err">
+        <div class="ph"><h2>Error Reports</h2><p>Auto-reported app crashes</p></div>
+        <div style="margin-bottom:14px"><button class="btn bgr" onclick="clearErrors()">Clear All</button></div>
+        <div id="EL"></div>
+      </div>
+
     </div>
   </div>
 </div>
 
+<div class="toast" id="T"></div>
+
 <script>
-// ── CONFIG ─────────────────────────────────────────────────────
-const ADMIN_USER = 'admin';
-const ADMIN_PASS = 'daywork2024!'; // Change this!
-
-// ── STATE ──────────────────────────────────────────────────────
-let db = { jobs:[], ratings:{}, chats:{} };
-let adminData = {
-  reports: [],
-  bannedUsers: [],
-  bannedIPs: [],
-  errors: [],
-  flaggedJobs: []
+// ── ADMIN ACCOUNTS (add more here) ──────────────────────────
+const ADMINS = {
+  'Camelcash32': { password: 'Camelcash03172006@', role: 'owner', email: 'admin@daywork.com' },
+  'admin':       { password: 'daywork2024!',       role: 'admin', email: '' },
 };
-let ws = null;
-let loggedIn = false;
+// Recovery code for forgot password (change this!)
+const RECOVERY_CODE = 'DAYWORK-RESET-2024';
+let currentAdmin = null;
+let ws, db={jobs:[],ratings:{},chats:{},reports:[]};
+let mod={bannedUsers:[],bannedIPs:[],flaggedJobs:[],errors:[],modLog:[],warnings:{},wordFilter:[],autoFlag:true};
+let fLog=[], fErr=[];
 
-// Load persisted admin data
-function loadAdminData() {
-  try {
-    const saved = localStorage.getItem('dw_adminData');
-    if(saved) adminData = {...adminData, ...JSON.parse(saved)};
-  } catch(e) {}
-}
-function saveAdminData() {
-  localStorage.setItem('dw_adminData', JSON.stringify(adminData));
-}
-loadAdminData();
+// Runtime admin store (in-memory, can be extended)
+let runtimeAdmins = JSON.parse(localStorage.getItem('dw_admins') || 'null') || {...ADMINS};
 
-// ── LOGIN ──────────────────────────────────────────────────────
-function doLogin() {
-  const u = document.getElementById('adminUser').value.trim();
-  const p = document.getElementById('adminPass').value;
-  if(u === ADMIN_USER && p === ADMIN_PASS) {
-    loggedIn = true;
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('dashboard').style.display = 'block';
+function showView(id){
+  document.querySelectorAll('.login-card').forEach(c=>c.style.display='none');
+  document.getElementById(id).style.display='block';
+}
+
+function togglePassword(){
+  const inp = document.getElementById('aPass');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function doLogin(){
+  const u=document.getElementById('aUser').value.trim();
+  const p=document.getElementById('aPass').value;
+  const admin = runtimeAdmins[u];
+  if(admin && admin.password === p){
+    currentAdmin = { username: u, role: admin.role };
+    document.getElementById('loginWrap').style.display='none';
+    document.getElementById('shell').style.display='block';
+    document.getElementById('adminName').textContent = u + ' (' + admin.role + ')';
     connectWS();
-    renderAll();
   } else {
-    document.getElementById('loginErr').textContent = 'Invalid credentials.';
+    document.getElementById('loginErr').textContent='Invalid username or password.';
   }
 }
-document.addEventListener('keydown', e => {
-  if(e.key === 'Enter' && !loggedIn) doLogin();
-});
 
-function doLogout() {
-  loggedIn = false;
-  if(ws) ws.close();
-  document.getElementById('dashboard').style.display = 'none';
-  document.getElementById('loginScreen').style.display = 'flex';
+function doReset(){
+  const u = document.getElementById('fUser').value.trim();
+  const code = document.getElementById('fCode').value.trim();
+  const np = document.getElementById('fNewPw').value;
+  const cp = document.getElementById('fConfirm').value;
+  const err = document.getElementById('forgotErr');
+  if(!runtimeAdmins[u]){ err.textContent='Username not found.'; return; }
+  if(code !== RECOVERY_CODE){ err.textContent='Invalid recovery code.'; return; }
+  if(np.length < 6){ err.textContent='Password must be at least 6 characters.'; return; }
+  if(np !== cp){ err.textContent='Passwords do not match.'; return; }
+  runtimeAdmins[u].password = np;
+  localStorage.setItem('dw_admins', JSON.stringify(runtimeAdmins));
+  err.style.color='#22c55e';
+  err.textContent='Password updated! Redirecting to login…';
+  setTimeout(()=>{ err.textContent=''; err.style.color='var(--accent)'; showView('viewLogin'); }, 2000);
 }
 
-// ── WEBSOCKET ──────────────────────────────────────────────────
-function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(proto + '//' + location.host);
-  ws.onopen = () => {
-    document.getElementById('connStatus').textContent = '🟢 Live';
-    document.getElementById('connStatus').style.color = '#22c55e';
+function showAddAdmin(){
+  document.getElementById('shell').style.display='none';
+  document.getElementById('loginWrap').style.display='flex';
+  showView('viewAddAdmin');
+}
+function hideAddAdmin(){
+  document.getElementById('loginWrap').style.display='none';
+  document.getElementById('shell').style.display='block';
+}
+function doAddAdmin(){
+  const ownerPw = document.getElementById('ownerPw').value;
+  const newUser = document.getElementById('newAdminUser').value.trim();
+  const newPw = document.getElementById('newAdminPw').value;
+  const role = document.getElementById('newAdminRole').value;
+  const err = document.getElementById('addErr');
+  // Verify owner password
+  if(!currentAdmin || currentAdmin.role !== 'owner'){ err.textContent='Only owners can add admins.'; return; }
+  if(runtimeAdmins[currentAdmin.username]?.password !== ownerPw){ err.textContent='Incorrect owner password.'; return; }
+  if(!newUser || newUser.length < 3){ err.textContent='Username must be at least 3 characters.'; return; }
+  if(newPw.length < 6){ err.textContent='Password must be at least 6 characters.'; return; }
+  if(runtimeAdmins[newUser]){ err.textContent='Username already exists.'; return; }
+  runtimeAdmins[newUser] = { password: newPw, role, email: '' };
+  localStorage.setItem('dw_admins', JSON.stringify(runtimeAdmins));
+  err.style.color='#22c55e';
+  err.textContent='Admin "'+newUser+'" added successfully!';
+  document.getElementById('newAdminUser').value='';
+  document.getElementById('newAdminPw').value='';
+  document.getElementById('ownerPw').value='';
+  setTimeout(()=>{ err.textContent=''; err.style.color='var(--accent)'; }, 3000);
+}
+
+document.addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+function doLogout(){ currentAdmin=null; if(ws)ws.close(); location.reload(); }
+
+function connectWS(){
+  const proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host);
+  ws.onopen=()=>{
+    setConn(true);
+    ws.send(JSON.stringify({type:'identify',user:'__admin__'}));
+    ws.send(JSON.stringify({type:'mod',action:'getFullMod'}));
+    ws.send(JSON.stringify({type:'mod',action:'getModLog'}));
   };
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if(msg.type === 'init' && msg.db) {
-      db = msg.db;
-      renderAll();
-    }
-    if(msg.type === 'update') {
-      if(msg.key === 'jobs') db.jobs = msg.val;
-      if(msg.key === 'ratings') db.ratings = msg.val;
-      if(msg.key === 'reports') {
-        adminData.reports = msg.val;
-        saveAdminData();
-      }
-      if(msg.key === 'adminData') {
-        adminData = {...adminData, ...msg.val};
-        saveAdminData();
-      }
-      renderAll();
-    }
+  ws.onmessage=e=>{
+    const m=JSON.parse(e.data);
+    if(m.type==='init'){ if(m.db)db=m.db; if(m.mod)applyMod(m.mod); rAll(); }
+    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; rAll(); }
+    if(m.type==='modUpdate') applyMod(m.mod);
+    if(m.type==='fullMod'){ mod={...mod,...m.mod}; if(m.mod.errors)fErr=m.mod.errors; if(m.mod.modLog)fLog=m.mod.modLog; rAll(); }
+    if(m.type==='modLog'){ fLog=m.log||[]; fErr=m.errors||[]; rAll(); }
+    if(m.type==='modAck') toast('✓ '+m.action,'g');
   };
-  ws.onclose = () => {
-    document.getElementById('connStatus').textContent = '🔴 Disconnected';
-    document.getElementById('connStatus').style.color = '#ef4444';
-    setTimeout(connectWS, 3000);
-  };
+  ws.onclose=()=>{ setConn(false); setTimeout(connectWS,3000); };
 }
-
-// ── NAV ────────────────────────────────────────────────────────
-function showSection(name) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('sec-'+name).classList.add('active');
-  document.getElementById('nav-'+name).classList.add('active');
+function setConn(ok){
+  document.getElementById('D').className='dot'+(ok?' live':'');
+  document.getElementById('CT').textContent=ok?'🟢 Live':'🔴 Reconnecting…';
 }
-
-// ── RENDER ALL ─────────────────────────────────────────────────
-function renderAll() {
-  renderStats();
-  renderReports();
-  renderBans();
-  renderJobs();
-  renderUsers();
-  renderErrors();
-  renderActivity();
-}
-
-// ── STATS ──────────────────────────────────────────────────────
-function renderStats() {
-  const pendingReports = adminData.reports.filter(r => r.status === 'pending').length;
-  document.getElementById('statJobs').textContent = (db.jobs||[]).length;
-  document.getElementById('statUsers').textContent = Object.keys(db.ratings||{}).length;
-  document.getElementById('statReports').textContent = pendingReports;
-  document.getElementById('statBans').textContent = (adminData.bannedUsers||[]).length + (adminData.bannedIPs||[]).length;
-  document.getElementById('reportBadge').textContent = pendingReports;
-  document.getElementById('errorBadge').textContent = (adminData.errors||[]).length;
-}
-
-// ── ACTIVITY ───────────────────────────────────────────────────
-function renderActivity() {
-  const el = document.getElementById('recentActivity');
-  const jobs = (db.jobs||[]).slice(-5).reverse();
-  if(!jobs.length) { el.textContent = 'No recent activity'; return; }
-  el.innerHTML = '';
-  jobs.forEach(j => {
-    const row = document.createElement('div');
-    row.style.cssText = 'padding:6px 0;border-bottom:1px solid #1a1a1a;display:flex;justify-content:space-between';
-    row.innerHTML = `<span style="color:#aaa">${j.title}</span><span style="color:#444;font-size:11px">by ${j.postedBy}</span>`;
-    el.appendChild(row);
-  });
-}
-
-// ── REPORTS ────────────────────────────────────────────────────
-function renderReports() {
-  const el = document.getElementById('reportsList');
-  const reports = adminData.reports || [];
-  if(!reports.length) { el.innerHTML = '<div class="empty">📭 No reports yet</div>'; return; }
-  el.innerHTML = '';
-  reports.forEach((r, i) => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-header">
-        <div>
-          <div class="card-title">🚨 Report #${i+1} — ${r.reportedUser || 'Unknown'}</div>
-          <div class="card-meta">By: ${r.reporter || 'Anonymous'} · ${r.date || ''}</div>
-        </div>
-        <span class="tag ${r.status==='resolved'?'tag-green':r.status==='dismissed'?'tag-gray':'tag-red'}">${r.status||'pending'}</span>
-      </div>
-      <div style="font-size:13px;color:#aaa;margin:8px 0;background:#0a0a0a;padding:8px 10px;border-radius:6px">${r.reason || 'No reason given'}</div>
-      <div class="actions">
-        <button class="btn-red" onclick="banUserFromReport(${i})">🚫 Ban User</button>
-        <button class="btn-green resolve-btn" onclick="resolveReport(${i},'resolved')">✓ Resolve</button>
-        <button class="btn-gray resolve-btn" onclick="resolveReport(${i},'dismissed')">Dismiss</button>
-        <button class="btn-red resolve-btn" onclick="deleteReport(${i})">Delete</button>
-      </div>`;
-    el.appendChild(card);
-  });
-}
-
-function resolveReport(i, status) {
-  adminData.reports[i].status = status;
-  saveAdminData();
-  renderReports();
-  renderStats();
-}
-function deleteReport(i) {
-  adminData.reports.splice(i, 1);
-  saveAdminData();
-  renderReports();
-  renderStats();
-}
-function banUserFromReport(i) {
-  const r = adminData.reports[i];
-  if(r.reportedUser && !adminData.bannedUsers.find(b=>b.name===r.reportedUser)) {
-    adminData.bannedUsers.push({name:r.reportedUser, reason:'Reported: '+r.reason, date:new Date().toLocaleDateString()});
-    adminData.reports[i].status = 'resolved';
-    saveAdminData();
-    renderAll();
-    alert('User "'+r.reportedUser+'" has been banned.');
+function applyMod(m){ mod={...mod,...m}; updSw(); }
+function modCmd(action,target,extra){
+  if(ws&&ws.readyState===1){
+    ws.send(JSON.stringify({type:'mod',action,target,...extra}));
+    setTimeout(()=>{ ws.send(JSON.stringify({type:'mod',action:'getFullMod'})); ws.send(JSON.stringify({type:'mod',action:'getModLog'})); },400);
   }
 }
 
-// ── BANS ───────────────────────────────────────────────────────
-function banUser() {
-  const name = document.getElementById('banUserInput').value.trim();
-  const reason = document.getElementById('banUserReason').value.trim();
-  if(!name) return;
-  if(adminData.bannedUsers.find(b=>b.name===name)) { alert('Already banned.'); return; }
-  adminData.bannedUsers.push({name, reason:reason||'No reason given', date:new Date().toLocaleDateString()});
-  document.getElementById('banUserInput').value = '';
-  document.getElementById('banUserReason').value = '';
-  saveAdminData();
-  renderBans();
-  renderStats();
+function go(pg){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
+  document.getElementById('p-'+pg).classList.add('on');
+  document.getElementById('n-'+pg).classList.add('on');
+  if(pg==='log') renderLog();
+  if(pg==='err') renderErrors();
 }
 
-function banIP() {
-  const ip = document.getElementById('banIPInput').value.trim();
-  const reason = document.getElementById('banIPReason').value.trim();
-  if(!ip) return;
-  if(adminData.bannedIPs.find(b=>b.ip===ip)) { alert('Already banned.'); return; }
-  adminData.bannedIPs.push({ip, reason:reason||'No reason given', date:new Date().toLocaleDateString()});
-  document.getElementById('banIPInput').value = '';
-  document.getElementById('banIPReason').value = '';
-  saveAdminData();
-  renderBans();
-  renderStats();
-}
+function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderRecentLog(); updBadges(); updSw(); }
 
-function unbanUser(name) {
-  adminData.bannedUsers = adminData.bannedUsers.filter(b=>b.name!==name);
-  saveAdminData();
-  renderBans();
-  renderStats();
-}
-function unbanIP(ip) {
-  adminData.bannedIPs = adminData.bannedIPs.filter(b=>b.ip!==ip);
-  saveAdminData();
-  renderBans();
-  renderStats();
-}
-
-function renderBans() {
-  const ul = document.getElementById('bannedUsersList');
-  const il = document.getElementById('bannedIPsList');
-  const users = adminData.bannedUsers || [];
-  const ips = adminData.bannedIPs || [];
-
-  if(!users.length) { ul.innerHTML = '<div class="empty">No banned users</div>'; }
-  else {
-    ul.innerHTML = '';
-    users.forEach(b => {
-      const row = document.createElement('div');
-      row.className = 'ban-item';
-      row.innerHTML = `<div><span style="color:#ef4444;font-weight:700">${b.name}</span> <span style="color:#333;font-size:11px;margin-left:8px">${b.reason}</span> <span style="color:#222;font-size:11px;margin-left:8px">${b.date}</span></div>`;
-      const btn = document.createElement('button');
-      btn.className = 'btn-green';
-      btn.style.fontSize = '11px';
-      btn.textContent = 'Unban';
-      btn.onclick = () => unbanUser(b.name);
-      row.appendChild(btn);
-      ul.appendChild(row);
-    });
-  }
-
-  if(!ips.length) { il.innerHTML = '<div class="empty">No banned IPs</div>'; }
-  else {
-    il.innerHTML = '';
-    ips.forEach(b => {
-      const row = document.createElement('div');
-      row.className = 'ban-item';
-      row.innerHTML = `<div><span style="font-family:monospace;color:#ef4444">${b.ip}</span> <span style="color:#333;font-size:11px;margin-left:8px">${b.reason}</span> <span style="color:#222;font-size:11px;margin-left:8px">${b.date}</span></div>`;
-      const btn = document.createElement('button');
-      btn.className = 'btn-green';
-      btn.style.fontSize = '11px';
-      btn.textContent = 'Unban';
-      btn.onclick = () => unbanIP(b.ip);
-      row.appendChild(btn);
-      il.appendChild(row);
-    });
-  }
-}
-
-// ── JOBS ───────────────────────────────────────────────────────
-function renderJobs() {
-  const el = document.getElementById('jobsList');
-  const q = (document.getElementById('jobSearch').value||'').toLowerCase();
-  const filter = document.getElementById('jobFilter').value;
-  let jobs = db.jobs || [];
-  if(q) jobs = jobs.filter(j => j.title.toLowerCase().includes(q) || (j.postedBy||'').toLowerCase().includes(q));
-  if(filter === 'flagged') jobs = jobs.filter(j => adminData.flaggedJobs.includes(j.id));
-  if(!jobs.length) { el.innerHTML = '<div class="empty">No jobs found</div>'; return; }
-  el.innerHTML = '';
-  jobs.forEach(j => {
-    const flagged = adminData.flaggedJobs.includes(j.id);
-    const expired = j.expiresAt && j.expiresAt < Date.now();
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-header">
-        <div>
-          <div class="card-title">${j.title} ${j.urgent?'🔴':''}</div>
-          <div class="card-meta">By: ${j.postedBy} · ${j.location||''} · $${j.pay} · ${j.applicants?.length||0} applicants</div>
-        </div>
-        <div>
-          ${flagged?'<span class="tag tag-red">Flagged</span>':''}
-          ${expired?'<span class="tag tag-gray">Expired</span>':'<span class="tag tag-green">Active</span>'}
-        </div>
-      </div>
-      ${j.description?`<div style="font-size:12px;color:#555;margin:4px 0">${j.description.slice(0,100)}${j.description.length>100?'…':''}</div>`:''}
-      <div class="actions">
-        <button class="btn-red" onclick="removeJob(${j.id})">🗑 Remove Job</button>
-        <button class="btn-${flagged?'green':'gray'}" onclick="toggleFlag(${j.id})">${flagged?'✓ Unflag':'⚑ Flag'}</button>
-        <button class="btn-gray" onclick="banUser2('${j.postedBy}')">🚫 Ban Poster</button>
-      </div>`;
-    el.appendChild(card);
-  });
-}
-
-function removeJob(id) {
-  if(!confirm('Remove this job listing?')) return;
-  if(ws && ws.readyState === 1) {
-    const newJobs = (db.jobs||[]).filter(j=>j.id!==id);
-    ws.send(JSON.stringify({type:'set', key:'jobs', val:newJobs}));
-    db.jobs = newJobs;
-  }
-  renderJobs();
-}
-function toggleFlag(id) {
-  if(adminData.flaggedJobs.includes(id)) adminData.flaggedJobs = adminData.flaggedJobs.filter(f=>f!==id);
-  else adminData.flaggedJobs.push(id);
-  saveAdminData();
-  renderJobs();
-}
-function banUser2(name) {
-  if(!adminData.bannedUsers.find(b=>b.name===name)) {
-    adminData.bannedUsers.push({name, reason:'Banned by admin from job', date:new Date().toLocaleDateString()});
-    saveAdminData();
-    renderBans();
-    renderStats();
-    alert('User "'+name+'" banned.');
-  } else { alert('Already banned.'); }
-}
-
-// ── USERS ──────────────────────────────────────────────────────
-function renderUsers() {
-  const el = document.getElementById('usersList');
-  const q = (document.getElementById('userSearch').value||'').toLowerCase();
-  // Derive users from jobs and ratings
-  const names = new Set();
-  (db.jobs||[]).forEach(j => { names.add(j.postedBy); j.applicants?.forEach(a=>names.add(a.name)); });
+function rStats(){
+  const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
+  const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); });
   Object.keys(db.ratings||{}).forEach(n=>names.add(n));
-  let users = [...names].filter(Boolean);
-  if(q) users = users.filter(u=>u.toLowerCase().includes(q));
-  if(!users.length) { el.innerHTML = '<div class="empty">No users found</div>'; return; }
-  el.innerHTML = '';
-  users.forEach(name => {
-    const banned = adminData.bannedUsers.find(b=>b.name===name);
-    const rating = db.ratings?.[name];
-    const jobCount = (db.jobs||[]).filter(j=>j.postedBy===name).length;
-    const appCount = (db.jobs||[]).reduce((n,j)=>n+(j.applicants||[]).filter(a=>a.name===name).length,0);
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-header">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="width:36px;height:36px;border-radius:50%;background:#1a1a1a;display:flex;align-items:center;justify-content:center;font-weight:700;color:#555;flex-shrink:0">${name.charAt(0)}</div>
-          <div>
-            <div class="card-title">${name}</div>
-            <div class="card-meta">${jobCount} jobs posted · ${appCount} applications · ${rating?'⭐ '+rating.avg.toFixed(1)+' ('+rating.count+')':'No ratings'}</div>
-          </div>
-        </div>
-        ${banned?'<span class="tag tag-red">Banned</span>':'<span class="tag tag-green">Active</span>'}
-      </div>
-      <div class="actions">
-        ${banned
-          ? `<button class="btn-green" onclick="unbanUser('${name}')">✓ Unban</button>`
-          : `<button class="btn-red" onclick="banUser2('${name}')">🚫 Ban User</button>`
-        }
-        <button class="btn-gray" onclick="viewUserJobs('${name}')">📋 View Jobs</button>
-      </div>`;
-    el.appendChild(card);
+  st('s-job',(db.jobs||[]).length); st('s-usr',names.size); st('s-rep',pr);
+  st('s-flg',(mod.flaggedJobs||[]).length); st('s-ban',(mod.bannedUsers||[]).length+(mod.bannedIPs||[]).length);
+}
+function updBadges(){
+  const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
+  st('b-rep',pr||''); st('b-job',(mod.flaggedJobs||[]).length||''); st('b-err',fErr.length||'');
+}
+function updSw(){
+  const sw=document.getElementById('sw-af'); if(sw){ sw.classList.toggle('on',!!mod.autoFlag); }
+}
+
+function renderReports(){
+  const el=document.getElementById('REP'), reps=db.reports||[];
+  if(!reps.length){ el.innerHTML=emp('📭','No reports yet'); return; }
+  el.innerHTML=''; [...reps].reverse().forEach((r,ri)=>{
+    const i=reps.length-1-ri;
+    const sc=r.status==='resolved'?'tg':r.status==='dismissed'?'tgr':'tr';
+    const d=document.createElement('div'); d.className='card';
+    d.innerHTML=`<div class="ct"><div><div class="ctit">Against <span style="color:var(--accent)">${r.reportedUser||'?'}</span></div><div class="cm">by ${r.reporter||'anon'} · ${r.date||''}</div></div><span class="tag ${sc}">${r.status||'pending'}</span></div><div class="cb">${r.reason||'No reason'}</div><div class="ca">${r.status==='pending'?`<button class="btn br" onclick="modCmd('banUser','${r.reportedUser||''}',{reason:'Reported'}); modCmd('resolveReport',${i},{status:'resolved'})">🚫 Ban</button><button class="btn by" onclick="modCmd('warnUser','${r.reportedUser||''}',{reason:'You were reported: ${(r.reason||'').replace(/'/g,"\\'")}'}); modCmd('resolveReport',${i},{status:'resolved'})">⚠️ Warn</button><button class="btn bg" onclick="modCmd('resolveReport',${i},{status:'resolved'})">✓ Resolve</button><button class="btn bgr" onclick="modCmd('resolveReport',${i},{status:'dismissed'})">Dismiss</button>`:'<span style="color:var(--muted);font-size:12px">Closed</span>'}</div>`;
+    el.appendChild(d);
   });
 }
 
-function viewUserJobs(name) {
-  document.getElementById('jobSearch').value = name;
-  showSection('jobs');
-  renderJobs();
+function banUser(){ const n=document.getElementById('BN').value.trim(), r=document.getElementById('BR').value.trim(); if(!n)return; modCmd('banUser',n,{reason:r||'Banned by admin'}); document.getElementById('BN').value=''; document.getElementById('BR').value=''; }
+function banIP(){ const ip=document.getElementById('BI').value.trim(), r=document.getElementById('BIR').value.trim(); if(!ip)return; modCmd('banIP',ip,{reason:r||'Banned by admin'}); document.getElementById('BI').value=''; document.getElementById('BIR').value=''; }
+function renderBans(){
+  const ul=document.getElementById('BUL'), il=document.getElementById('BIL');
+  const us=mod.bannedUsers||[], ips=mod.bannedIPs||[];
+  ul.innerHTML=us.length?us.map(b=>`<div class="bi"><div><div class="bn">@${b.name}</div><div class="brs">${b.reason||''} · ${b.date?new Date(b.date).toLocaleDateString():''}</div></div><button class="btn bg" style="font-size:11px" onclick="modCmd('unbanUser','${b.name}',{})">Unban</button></div>`).join(''):emp('👤','No banned users');
+  il.innerHTML=ips.length?ips.map(b=>`<div class="bi"><div><div class="bn">${b.ip}</div><div class="brs">${b.reason||''} · ${b.date?new Date(b.date).toLocaleDateString():''}</div></div><button class="btn bg" style="font-size:11px" onclick="modCmd('unbanIP','${b.ip}',{})">Unban</button></div>`).join(''):emp('🌐','No banned IPs');
 }
 
-// ── ERRORS ─────────────────────────────────────────────────────
-function renderErrors() {
-  const el = document.getElementById('errorsList');
-  const errors = adminData.errors || [];
-  if(!errors.length) { el.innerHTML = '<div class="empty">✅ No errors reported</div>'; return; }
-  el.innerHTML = '';
-  errors.forEach((err, i) => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <div class="card-header">
-        <div>
-          <div class="card-title" style="color:#ef4444">⚠️ Error #${i+1}</div>
-          <div class="card-meta">${err.date||''} · ${err.user||'Unknown user'}</div>
-        </div>
-        <button class="btn-gray resolve-btn" onclick="deleteError(${i})">Dismiss</button>
-      </div>
-      <pre style="font-size:11px;color:#666;margin-top:8px;background:#0a0a0a;padding:8px;border-radius:6px;overflow-x:auto;white-space:pre-wrap">${err.message||''}</pre>`;
-    el.appendChild(card);
+function sendWarn(){ const n=document.getElementById('WN').value.trim(), m=document.getElementById('WM').value.trim(); if(!n||!m)return; modCmd('warnUser',n,{reason:m}); document.getElementById('WN').value=''; document.getElementById('WM').value=''; toast('⚠️ Warning sent to '+n,''); }
+function renderWarns(){
+  const el=document.getElementById('WL'), w=mod.warnings||{};
+  const entries=Object.entries(w).filter(([,v])=>v&&v.length);
+  el.innerHTML=entries.length?entries.map(([name,ws2])=>`<div class="card"><div class="ctit" style="margin-bottom:8px"><span style="color:var(--yellow)">@${name}</span> — ${ws2.length} warning(s)</div>${ws2.map(x=>`<div style="font-size:12px;color:#aaa;padding:6px 10px;background:var(--bg3);border-radius:6px;margin-bottom:4px">${x.msg} <span style="color:var(--muted)">${x.date?new Date(x.date).toLocaleDateString():''}</span></div>`).join('')}<div class="ca" style="margin-top:8px"><button class="btn br" style="font-size:11px" onclick="modCmd('banUser','${name}',{reason:'Too many warnings'})">🚫 Ban</button></div></div>`).join(''):emp('⚠️','No warnings issued');
+}
+
+function renderJobs(){
+  const el=document.getElementById('JL');
+  const q=(document.getElementById('JQ').value||'').toLowerCase();
+  const f=document.getElementById('JF').value;
+  let jobs=[...(db.jobs||[])];
+  if(q) jobs=jobs.filter(j=>(j.title||'').toLowerCase().includes(q)||(j.postedBy||'').toLowerCase().includes(q));
+  if(f==='flagged') jobs=jobs.filter(j=>(mod.flaggedJobs||[]).includes(j.id));
+  if(f==='active') jobs=jobs.filter(j=>!j.expiresAt||j.expiresAt>Date.now());
+  if(!jobs.length){ el.innerHTML=emp('📋','No jobs match'); return; }
+  el.innerHTML=''; jobs.forEach(j=>{
+    const fl=(mod.flaggedJobs||[]).includes(j.id), ex=j.expiresAt&&j.expiresAt<Date.now();
+    const d=document.createElement('div'); d.className='card';
+    d.innerHTML=`<div class="ct"><div><div class="ctit">${j.urgent?'🔴 ':''}${j.title||'Untitled'}</div><div class="cm">@${j.postedBy} · ${j.location||'?'} · ${j.pay||'?'} · ${(j.applicants||[]).length} applicants</div></div><div style="display:flex;gap:4px;flex-wrap:wrap">${fl?'<span class="tag ty">🚩 FLAGGED</span>':''}${ex?'<span class="tag tgr">EXPIRED</span>':'<span class="tag tg">ACTIVE</span>'}</div></div>${j.description?`<div class="cb">${j.description.slice(0,100)}${j.description.length>100?'…':''}</div>`:''}<div class="ca"><button class="btn br" onclick="rmJob(${j.id})">🗑 Remove</button><button class="btn ${fl?'bg':'by'}" onclick="modCmd('${fl?'unflag':'flag'}Job',${j.id},{})">🚩 ${fl?'Unflag':'Flag'}</button><button class="btn bgr" onclick="document.getElementById('BN').value='${j.postedBy}';go('ban')">🚫 Ban Poster</button><button class="btn by" onclick="document.getElementById('WN').value='${j.postedBy}';go('wrn')">⚠️ Warn</button></div>`;
+    el.appendChild(d);
+  });
+}
+function rmJob(id){ if(!confirm('Remove this job?'))return; modCmd('removeJob',id,{}); toast('🗑 Job removed','r'); }
+
+function renderUsers(){
+  const el=document.getElementById('UL'), q=(document.getElementById('UQ').value||'').toLowerCase();
+  const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); }); Object.keys(db.ratings||{}).forEach(n=>names.add(n));
+  let users=[...names].filter(Boolean); if(q) users=users.filter(u=>u.toLowerCase().includes(q));
+  if(!users.length){ el.innerHTML=emp('👥','No users found'); return; }
+  el.innerHTML=''; users.forEach(name=>{
+    const banned=(mod.bannedUsers||[]).find(b=>b.name===name), warned=(mod.warnings||{})[name];
+    const r=db.ratings&&db.ratings[name], posted=(db.jobs||[]).filter(j=>j.postedBy===name).length;
+    const d=document.createElement('div'); d.className='card';
+    d.innerHTML=`<div class="ct"><div style="display:flex;align-items:center;gap:12px"><div class="av">${name.charAt(0).toUpperCase()}</div><div><div class="ctit">${name}</div><div class="cm">${posted} posted · ${r?'⭐'+r.avg.toFixed(1):'no rating'}${warned&&warned.length?' · ⚠️ '+warned.length+' warn(s)':''}</div></div></div>${banned?'<span class="tag tr">BANNED</span>':'<span class="tag tg">ACTIVE</span>'}</div><div class="ca">${banned?`<button class="btn bg" style="font-size:11px" onclick="modCmd('unbanUser','${name}',{})">✓ Unban</button>`:`<button class="btn br" style="font-size:11px" onclick="modCmd('banUser','${name}',{reason:'Banned by admin'})">🚫 Ban</button>`}<button class="btn by" style="font-size:11px" onclick="document.getElementById('WN').value='${name}';go('wrn')">⚠️ Warn</button><button class="btn bgr" style="font-size:11px" onclick="document.getElementById('JQ').value='${name}';go('job');renderJobs()">📋 Jobs</button></div>`;
+    el.appendChild(d);
   });
 }
 
-function deleteError(i) {
-  adminData.errors.splice(i, 1);
-  saveAdminData();
-  renderErrors();
-  renderStats();
+function addWord(){ const w=document.getElementById('WI').value.trim().toLowerCase(); if(!w)return; modCmd('addWordFilter',w,{}); document.getElementById('WI').value=''; }
+function renderWordFilter(){
+  const el=document.getElementById('WC'), words=mod.wordFilter||[];
+  el.innerHTML=words.length?words.map(w=>`<span class="wc">${w}<button onclick="modCmd('removeWordFilter','${w}',{})">×</button></span>`).join(''):'<span style="color:var(--muted);font-size:13px">No filtered words yet</span>';
 }
-function clearErrors() {
-  if(!confirm('Clear all error logs?')) return;
-  adminData.errors = [];
-  saveAdminData();
-  renderErrors();
-  renderStats();
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&document.activeElement===document.getElementById('WI')) addWord(); });
+
+function renderErrors(){
+  const el=document.getElementById('EL');
+  if(!fErr.length){ el.innerHTML=emp('✅','No errors'); return; }
+  el.innerHTML=''; fErr.forEach((err,i)=>{
+    const d=document.createElement('div'); d.className='card';
+    d.innerHTML=`<div class="ct"><div><div class="ctit" style="color:var(--accent)">Error #${i+1}</div><div class="cm">${err.user||'?'} · ${err.date||''}</div></div></div><pre style="font-size:11px;color:var(--muted);background:var(--bg3);padding:10px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;font-family:'JetBrains Mono',monospace">${(err.message||'').slice(0,500)}</pre>`;
+    el.appendChild(d);
+  });
+}
+function clearErrors(){ modCmd('clearErrors','',{}); fErr=[]; renderErrors(); toast('Cleared','g'); }
+
+function renderRecentLog(){
+  const el=document.getElementById('R-log');
+  el.innerHTML=fLog.length?fLog.slice(0,8).map(l=>lRow(l)).join(''):emp('📜','No actions yet');
+}
+function renderLog(){
+  const el=document.getElementById('F-log');
+  el.innerHTML=fLog.length?fLog.map(l=>lRow(l)).join(''):emp('📜','No actions yet');
+}
+function lRow(l){
+  const t=new Date(l.date).toLocaleTimeString(), d2=new Date(l.date).toLocaleDateString();
+  return `<div class="le"><span class="lt">${d2}<br>${t}</span><span class="la ${l.action}">${l.action}</span><span class="ld">${l.detail||''}</span><span style="font-size:11px;color:var(--muted);flex-shrink:0">${l.by||''}</span></div>`;
 }
 
-// ── MANUAL REPORT SUBMISSION (from main app) ───────────────────
-// The main app can post reports here via the server
-window.addEventListener('storage', e => {
-  if(e.key === 'dw_newReport') {
-    try {
-      const r = JSON.parse(e.newValue);
-      adminData.reports.push({...r, status:'pending', date:new Date().toLocaleDateString()});
-      saveAdminData();
-      renderReports();
-      renderStats();
-    } catch(err) {}
-  }
-});
+function st(id,val){ const e=document.getElementById(id); if(e)e.textContent=val; }
+function emp(ico,txt){ return `<div class="emp"><div class="emp-i">${ico}</div><div style="font-size:13px">${txt}</div></div>`; }
+function toast(msg,type){ const t=document.getElementById('T'); t.textContent=msg; t.className='toast'+(type?' '+type:''); void t.offsetWidth; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
 </script>
 </body>
 </html>
