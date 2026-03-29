@@ -360,6 +360,17 @@ function renderAuth(accentColor, role, onLogin){
       eye2.textContent="👁";
       eye2.onclick=()=>{pw2.type=pw2.type==="password"?"text":"password";eye2.style.opacity=pw2.type==="text"?"1":"0.5";};
       const errS=pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
+
+      // ToS checkbox MUST be defined before doSignup
+      const tosCb=el("input",null,{width:"auto",flexShrink:"0",cursor:"pointer"},{type:"checkbox"});
+      const tosLabel=el("label",null,{fontSize:"13px",color:"#666",cursor:"pointer"});
+      tosLabel.textContent="I agree to the ";
+      const tosLink=ap(el("span",null,{color:"#a78bfa",textDecoration:"underline",cursor:"pointer",fontWeight:"700"}),"Terms of Service");
+      tosLink.onclick=(e)=>{e.preventDefault();showToS(null);};
+      ap(tosLabel,tosLink);
+      const tosRow=div(null,{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"});
+      ap(tosRow,tosCb,tosLabel);
+
       const doSignup=()=>{
         const username=unIn.value.trim();
         const email=emIn.value.trim().toLowerCase();
@@ -374,7 +385,6 @@ function renderAuth(accentColor, role, onLogin){
         const users=load("users",MOCK_USERS);
         if(users.find(u=>u.email===email)){errS.textContent="An account with this email already exists.";return;}
         if(users.find(u=>u.name&&u.name.toLowerCase()===username.toLowerCase())){errS.textContent="Username already taken.";return;}
-        // Generate 6-digit code and send verification email
         const code=String(Math.floor(100000+Math.random()*900000));
         try{localStorage.setItem('dw_tosAccepted','1');}catch(e){}
         pendingVerify={code,email,username,expires:Date.now()+10*60*1000,pass,pendingUsername:username};
@@ -387,15 +397,16 @@ function renderAuth(accentColor, role, onLogin){
         })
         .then(r=>r.json())
         .then(data=>{
-          if(data.dev){
-            errS.textContent="Dev mode — check server console for code.";
+          if(data.dev&&!data.emailSent){
+            errS.textContent="Check your email. If not received, check spam folder.";
           }
           authView="verify";
           rebuild();
         })
         .catch(()=>{
-          // If server not available (standalone mode), skip verification
-          const newUser={id:"u_"+Date.now(),email,password:pass,name:username,joinDate:new Date().toLocaleDateString(),emailVerified:false};
+          // Server unavailable — create account without verification
+          const newUser={id:"u_"+Date.now(),email,password:pass,name:username,
+            joinDate:new Date().toLocaleDateString(),emailVerified:false};
           const updated=[...load("users",MOCK_USERS),newUser];
           save("users",updated);
           pendingUser=newUser;
@@ -403,16 +414,8 @@ function renderAuth(accentColor, role, onLogin){
           rebuild();
         });
       };
+
       pw2.addEventListener("keydown",e=>{if(e.key==="Enter")doSignup();});
-      // ToS checkbox — MUST be created before doSignup references it
-      const tosRow=div(null,{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"});
-      const tosCb=el("input",null,{width:"auto",flexShrink:"0",cursor:"pointer"},{type:"checkbox"});
-      const tosLabel=el("label",null,{fontSize:"13px",color:"#666",cursor:"pointer"});
-      tosLabel.textContent="I agree to the ";
-      const tosLink=ap(el("span",null,{color:"#a78bfa",textDecoration:"underline",cursor:"pointer",fontWeight:"700"}),"Terms of Service");
-      tosLink.onclick=(e)=>{e.preventDefault();showToS(null);};
-      ap(tosLabel, tosLink);
-      ap(tosRow, tosCb, tosLabel);
 
       const backRow=div(null,{textAlign:"center",fontSize:"13px",color:"#555"});
       const loginLink=ap(el("span",null,{color:"#a78bfa",fontWeight:"700",textDecoration:"underline",cursor:"pointer"}),"Sign in");
@@ -429,7 +432,7 @@ function renderAuth(accentColor, role, onLogin){
         btn("btn btn-accent",{marginBottom:"12px","--accent":accentColor},doSignup,"Create Account →"),
         backRow
       );
-      ap(card2, signupForm);
+      ap(card2,signupForm);
       ap(box,card2);
 
     } else if(authView === "profile"){

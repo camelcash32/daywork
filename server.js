@@ -224,8 +224,9 @@ const server = http.createServer((req, res) => {
             <p style="color:#555;font-size:13px">This code expires in 10 minutes. If you didn't sign up for DAYWORK, ignore this email.</p>
           </div>`;
         const ok = await notify2.sendEmail(email, subject, html);
+        if (!ok) console.log('[VERIFY] Email failed — code for '+email+': '+code);
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
-        res.end(JSON.stringify({ ok }));
+        res.end(JSON.stringify({ ok: true, emailSent: ok, dev: !ok }));
       } catch(e) {
         res.writeHead(500); res.end('Error: '+e.message);
       }
