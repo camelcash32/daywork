@@ -404,16 +404,7 @@ function renderAuth(accentColor, role, onLogin){
         });
       };
       pw2.addEventListener("keydown",e=>{if(e.key==="Enter")doSignup();});
-      ap(signupForm,
-        ap(div(null,{marginBottom:"10px"}),lbl("USERNAME *"),unIn),
-        ap(div(null,{marginBottom:"10px"}),lbl("EMAIL *"),emIn),
-        ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD *"),ap(pw1Wrap,pw1,eye1)),
-        ap(div(null,{marginBottom:"10px"}),lbl("CONFIRM PASSWORD *"),ap(pw2Wrap,pw2,eye2)),
-        errS,
-        btn("btn btn-accent",{marginBottom:"12px","--accent":accentColor},doSignup,"Create Account →")
-      );
-      ap(card2, signupForm);
-      // ToS checkbox — compact single line
+      // ToS checkbox — MUST be created before doSignup references it
       const tosRow=div(null,{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"});
       const tosCb=el("input",null,{width:"auto",flexShrink:"0",cursor:"pointer"},{type:"checkbox"});
       const tosLabel=el("label",null,{fontSize:"13px",color:"#666",cursor:"pointer"});
@@ -422,13 +413,23 @@ function renderAuth(accentColor, role, onLogin){
       tosLink.onclick=(e)=>{e.preventDefault();showToS(null);};
       ap(tosLabel, tosLink);
       ap(tosRow, tosCb, tosLabel);
-      ap(card2, tosRow);
 
       const backRow=div(null,{textAlign:"center",fontSize:"13px",color:"#555"});
       const loginLink=ap(el("span",null,{color:"#a78bfa",fontWeight:"700",textDecoration:"underline",cursor:"pointer"}),"Sign in");
       loginLink.onclick=()=>{authView="login";rebuild();};
       ap(backRow,"Already have an account? ",loginLink);
-      ap(card2,backRow);
+
+      ap(signupForm,
+        ap(div(null,{marginBottom:"10px"}),lbl("USERNAME *"),unIn),
+        ap(div(null,{marginBottom:"10px"}),lbl("EMAIL *"),emIn),
+        ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD *"),ap(pw1Wrap,pw1,eye1)),
+        ap(div(null,{marginBottom:"10px"}),lbl("CONFIRM PASSWORD *"),ap(pw2Wrap,pw2,eye2)),
+        errS,
+        tosRow,
+        btn("btn btn-accent",{marginBottom:"12px","--accent":accentColor},doSignup,"Create Account →"),
+        backRow
+      );
+      ap(card2, signupForm);
       ap(box,card2);
 
     } else if(authView === "profile"){
