@@ -11,7 +11,7 @@ const MOD_FILE  = path.join(__dirname, 'moderation.json');
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
   try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
-  return { jobs:[], ratings:{}, chats:{}, reports:[] };
+  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[] };
 }
 function loadMod() {
   try { if (fs.existsSync(MOD_FILE)) return JSON.parse(fs.readFileSync(MOD_FILE,'utf8')); } catch(e){}
@@ -77,6 +77,45 @@ function safeModData() {
     modLogCount: mod.modLog.length,
     errorCount:  mod.errors.length,
   };
+}
+
+// ── JOB NOTIFICATION TO SEEKERS ──────────────────────────────
+async function notifySeekersNewJob(job) {
+  if (!notify) return;
+  // Get all registered users with email
+  const users = db.users || [];
+  const seekers = users.filter(u => u.email && u.emailVerified !== false);
+  if (!seekers.length) {
+    console.log('[NOTIFY] No seekers to notify');
+    return;
+  }
+  const subject = `⚡ DAYWORK: New job near you — "${job.title}"`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
+      <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+      <h3 style="margin-bottom:16px">A new job was just posted!</h3>
+      <div style="background:#1a1a1a;border-radius:10px;padding:16px;margin-bottom:16px">
+        <p style="font-weight:700;font-size:18px;margin-bottom:8px">${job.title}</p>
+        <p style="color:#aaa;margin-bottom:4px">📍 ${job.location || job.zip}</p>
+        <p style="color:#aaa;margin-bottom:4px">💰 ${job.pay}</p>
+        <p style="color:#aaa;margin-bottom:4px">📅 ${job.date}</p>
+        ${job.description ? `<p style="color:#888;font-size:13px;margin-top:8px">${job.description.slice(0,150)}${job.description.length>150?'...':''}</p>` : ''}
+      </div>
+      <p style="color:#555;font-size:13px;margin-bottom:16px">Log in to DAYWORK to apply before it fills up. Jobs expire in 24 hours!</p>
+      <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">View Job →</a>
+      <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this because you have a DAYWORK account. Log in to manage your notification settings.</p>
+    </div>`;
+
+  let sent = 0;
+  for (const user of seekers) {
+    try {
+      await notify.sendEmail(user.email, subject, html);
+      sent++;
+    } catch(e) {
+      console.error(`[NOTIFY] Failed to email ${user.email}:`, e.message);
+    }
+  }
+  console.log(`[NOTIFY] Job notification sent to ${sent}/${seekers.length} seekers`);
 }
 
 // ── HTTP server ───────────────────────────────────────────────
@@ -318,10 +357,24 @@ wss.on('connection', (ws, req) => {
             }
             return job;
           });
+          // Detect newly posted jobs and notify all seekers
+          if (notify && db.jobs && Array.isArray(db.jobs)) {
+            const oldIds = new Set(db.jobs.map(j => j.id));
+            msg.val.forEach(newJob => {
+              if (!oldIds.has(newJob.id)) {
+                console.log(`[NOTIFY] New job posted: "${newJob.title}" by ${newJob.postedBy}`);
+                notifySeekersNewJob(newJob);
+              }
+            });
+          }
           db.jobs = msg.val;
           dirty = true;
         }
         else if(msg.key === 'ratings') { db.ratings = msg.val; dirty = true; }
+        else if(msg.key === 'users' && Array.isArray(msg.val)) {
+          db.users = msg.val;
+          dirty = true;
+        }
         else if(msg.key === 'reports') {
           if(!Array.isArray(db.reports)) db.reports = [];
           // Add new report
