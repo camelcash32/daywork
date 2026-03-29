@@ -1,5 +1,5 @@
 {
-  "_readme": "DAYWORK email configuration",
+  "_readme": "DAYWORK email configuration via Resend",
   "resend_api_key": "re_DWgPamVa_AYj7XpjptboeBepviY4MJUne",
-  "email_from": "DAYWORK <onboarding@resend.dev>"
+  "email_from": "DAYWORK <noreply@godaywork.com>"
 }
