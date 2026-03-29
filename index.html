@@ -2599,4 +2599,66 @@ function showToS(onAccept){
     display:'flex',flexDirection:'column',gap:'10px'});
   const chkRow=div(null,{display:'flex',alignItems:'center',gap:'10px',marginBottom:'12px'});
   const chk=el('input',null,{width:'auto',flexShrink:'0',cursor:'pointer'},{type:'checkbox'});
-  ap(chkRow,chk,ap(el('label',null,{fontSize:'13px',color:'#aaa',cursor:
+  ap(chkRow,chk,ap(el('label',null,{fontSize:'13px',color:'#aaa',cursor:'pointer',lineHeight:'1.4'}),
+    'I have read and agree to the DAYWORK Terms of Service'));
+  const acceptBtn=btn('btn btn-g',{opacity:'0.4',cursor:'not-allowed'},()=>{
+    if(!chk.checked) return;
+    try{localStorage.setItem('dw_tosAccepted','1');}catch(e){}
+    ov.remove();
+    if(onAccept) onAccept();
+  },'Accept & Continue →');
+  chk.onchange=()=>{
+    acceptBtn.style.opacity=chk.checked?'1':'0.4';
+    acceptBtn.style.cursor=chk.checked?'pointer':'not-allowed';
+  };
+  ap(footer,chkRow,acceptBtn);
+  ap(box,footer);
+  ap(ov,box);
+  document.body.appendChild(ov);
+}
+
+function checkToS(){
+  try{
+    if(localStorage.getItem('dw_tosAccepted')==='1') return;
+  }catch(e){ return; }
+  showToS(null);
+}
+
+// ── FLOATING FEEDBACK BUTTON ──────────────────────────────────
+function addFeedbackFAB(){
+  const existing = document.getElementById('_feedbackFAB');
+  if(existing) return;
+  const fab = div(null,{
+    position:'fixed',bottom:'20px',right:'20px',zIndex:'9000',
+    background:'#e8c547',color:'#0f0f0f',borderRadius:'999px',
+    padding:'10px 18px',fontWeight:'700',fontSize:'13px',
+    cursor:'pointer',boxShadow:'0 4px 16px rgba(0,0,0,.4)',
+    display:'flex',alignItems:'center',gap:'6px',
+    transition:'transform .2s'
+  });
+  fab.id='_feedbackFAB';
+  ap(fab,'💬 Feedback');
+  fab.onmouseenter=()=>fab.style.transform='scale(1.05)';
+  fab.onmouseleave=()=>fab.style.transform='scale(1)';
+  fab.onclick=()=>showFeedbackModal();
+  document.body.appendChild(fab);
+}
+
+applyTheme();
+// Restore saved session
+const _savedUser=load("currentUser",null);
+if(_savedUser){U=_savedUser;}
+// Check URL params for signup redirect from landing page
+try{
+  const _urlParams = new URLSearchParams(window.location.search);
+  if(_urlParams.get('signup')==='1') {
+    // Will be handled in renderAuth - store flag
+    sessionStorage.setItem('_startSignup','1');
+  }
+}catch(e){}
+rerender();
+startTimerTick();
+setTimeout(addFeedbackFAB, 800);
+</script>
+</body>
+</html>
