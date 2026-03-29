@@ -263,8 +263,15 @@ function renderAuth(accentColor, role, onLogin){
       // Form card
       const card = div(null,{width:"100%",background:"#131313",border:"1px solid #222",
         borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"20px"});
+      // Use real form elements so browser offers to save password
+      const loginForm = el("form",null,{width:"100%"},{autocomplete:"on"});
+      loginForm.onsubmit = (e)=>{ e.preventDefault(); doLogin(); };
       const eIn = inp("email","your@email.com","");
+      eIn.setAttribute("name","email");
+      eIn.setAttribute("autocomplete","email");
       const pIn = inp("password","Password","");
+      pIn.setAttribute("name","password");
+      pIn.setAttribute("autocomplete","current-password");
       const errP = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
       const doLogin = ()=>{
         const users = load("users", MOCK_USERS);
@@ -272,14 +279,18 @@ function renderAuth(accentColor, role, onLogin){
         if(!u){ errP.textContent="Invalid email or password."; return; }
         onLogin(u);
         if(_ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:"identify",user:u.name}));
+        // Sync users to server
+        const allUsers3=load("users",MOCK_USERS);
+        wsSend("users", allUsers3);
       };
       pIn.addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
-      ap(card,
+      ap(loginForm,
         ap(div(null,{marginBottom:"10px"}),lbl("EMAIL"),eIn),
         ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD"),pIn),
         errP,
         btn("btn btn-accent",{marginBottom:"14px","--accent":accentColor},doLogin,"Sign In →")
       );
+      ap(card, loginForm);
       const switchRow = div(null,{textAlign:"center",fontSize:"13px",color:"#555"});
       const signupLink = ap(el("span",null,{color:"#a78bfa",fontWeight:"700",
         textDecoration:"underline",cursor:"pointer"}),"Create account");
@@ -310,10 +321,20 @@ function renderAuth(accentColor, role, onLogin){
       ap(box, ap(el("h1",null,{marginBottom:"6px",lineHeight:"1.1"}),"Create your account"));
       ap(box, pp(null,{fontSize:"13px",color:"#555",marginBottom:"20px"}),"Find same-day work or hire workers near you.");
       const card2 = div(null,{width:"100%",background:"#131313",border:"1px solid #222",borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"14px"});
+      const signupForm=el("form",null,{width:"100%"},{autocomplete:"on"});
+      signupForm.onsubmit=(e)=>{e.preventDefault();doSignup();};
       const unIn=inp("text","Username (no spaces)","");
+      unIn.setAttribute("name","username");
+      unIn.setAttribute("autocomplete","username");
       const emIn=inp("email","Email address","");
+      emIn.setAttribute("name","email");
+      emIn.setAttribute("autocomplete","email");
       const pw1=inp("password","Password (min 6 chars)","");
+      pw1.setAttribute("name","new-password");
+      pw1.setAttribute("autocomplete","new-password");
       const pw2=inp("password","Confirm password","");
+      pw2.setAttribute("name","confirm-password");
+      pw2.setAttribute("autocomplete","new-password");
       const errS=pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
       const doSignup=()=>{
         const username=unIn.value.trim();
@@ -359,7 +380,7 @@ function renderAuth(accentColor, role, onLogin){
         });
       };
       pw2.addEventListener("keydown",e=>{if(e.key==="Enter")doSignup();});
-      ap(card2,
+      ap(signupForm,
         ap(div(null,{marginBottom:"10px"}),lbl("USERNAME *"),unIn),
         ap(div(null,{marginBottom:"10px"}),lbl("EMAIL *"),emIn),
         ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD *"),pw1),
@@ -367,6 +388,7 @@ function renderAuth(accentColor, role, onLogin){
         errS,
         btn("btn btn-accent",{marginBottom:"12px","--accent":accentColor},doSignup,"Create Account →")
       );
+      ap(card2, signupForm);
       // ToS checkbox — compact single line
       const tosRow=div(null,{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"});
       const tosCb=el("input",null,{width:"auto",flexShrink:"0",cursor:"pointer"},{type:"checkbox"});
@@ -425,6 +447,9 @@ function renderAuth(accentColor, role, onLogin){
         save("users",updated);
         onLogin(completed);
         if(_ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:"identify",user:fullName}));
+        // Sync users to server so email notifications work
+        const allUsers2=load("users",MOCK_USERS);
+        wsSend("users", allUsers2);
       };
       const bioIn=el("textarea",null,{width:"100%",background:"#111",border:"1px solid #2a2a2a",
         borderRadius:"10px",padding:"11px 14px",color:"#f0ede8",fontFamily:"inherit",fontSize:"14px",
