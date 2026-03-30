@@ -130,6 +130,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if(url === '/privacy' || url === '/privacy.html') {
+    try {
+      res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'public','privacy.html')));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
   if(url === '/landing' || url === '/landing.html') {
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
