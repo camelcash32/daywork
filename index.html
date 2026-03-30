@@ -496,6 +496,7 @@ function renderAuth(accentColor, role, onLogin){
       ap(box,card_v);
 
     } else if(authView === "profile"){
+      if(!pendingUser){ authView="login"; _savedAuthView="login"; return buildView(); }
       ap(box, pp(null,{fontSize:"10px",fontWeight:"700",color:accentColor,letterSpacing:".18em",marginBottom:"10px"}),"ALMOST THERE!");
       ap(box, ap(el("h1",null,{marginBottom:"6px",lineHeight:"1.1"}),"Complete your profile"));
       ap(box, pp(null,{fontSize:"13px",color:"#555",marginBottom:"20px"}),"Help workers and posters know who you are.");
@@ -504,7 +505,7 @@ function renderAuth(accentColor, role, onLogin){
         background:"linear-gradient(135deg,#e8c547,#a78bfa)",
         display:"flex",alignItems:"center",justifyContent:"center",
         fontWeight:"900",fontSize:"28px",color:"#0f0f0f",margin:"0 auto 16px"});
-      ap(avatarPreview,(pendingUser.name||"?").charAt(0).toUpperCase());
+      ap(avatarPreview,(pendingUser&&pendingUser.name||"?").charAt(0).toUpperCase());
       const fnIn=inp("text","Your full name","");
       const zipIn=inp("text","ZIP code","");
       const gSel=el("select",null,{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",
