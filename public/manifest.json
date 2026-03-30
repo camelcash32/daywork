@@ -1,41 +1,82 @@
 {
-  "name": "DAYWORK \u2014 Same-Day Gigs",
+  "name": "DAYWORK — Same-Day Gigs",
   "short_name": "DAYWORK",
   "description": "Find same-day work or hire local workers near you. Post a gig in minutes or browse jobs near you and get paid today.",
-  "start_url": "/index.html",
+  "start_url": "/?source=pwa",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#080808",
   "theme_color": "#e8c547",
   "orientation": "portrait-primary",
   "scope": "/",
   "lang": "en-US",
   "id": "com.godaywork.app",
-  "categories": [
-    "productivity",
-    "utilities"
-  ],
+  "dir": "ltr",
+  "categories": ["productivity", "utilities", "lifestyle"],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "label": "DAYWORK App"
+      "label": "DAYWORK — Browse Jobs",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "label": "DAYWORK — Post a Gig on Desktop",
+      "form_factor": "wide"
     }
   ],
-  "related_applications": [],
-  "prefer_related_applications": false
+  "shortcuts": [
+    {
+      "name": "Post a Job",
+      "short_name": "Post Job",
+      "description": "Quickly post a same-day gig",
+      "url": "/?action=post",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Find Work",
+      "short_name": "Find Work",
+      "description": "Browse available jobs near you",
+      "url": "/?action=browse",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "share_target": {
+    "action": "/?share-target",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+daywork",
+      "url": "/?protocol=%s"
+    }
+  ],
+  "scope_extensions": [
+    { "origin": "https://www.godaywork.com" },
+    { "origin": "https://godaywork.com" }
+  ],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://www.godaywork.com/manifest.json"
+    }
+  ],
+  "prefer_related_applications": false,
+  "edge_side_panel": { "preferred_width": 400 }
 }
