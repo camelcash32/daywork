@@ -1,5 +1,5 @@
 {
-  "name": "DAYWORK â€” Same-Day Gigs",
+  "name": "DAYWORK - Same-Day Gigs",
   "short_name": "DAYWORK",
   "description": "Find same-day work or hire local workers near you. Post a gig in minutes or browse jobs near you and get paid today.",
   "start_url": "/?source=pwa",
@@ -25,14 +25,14 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "label": "DAYWORK â€” Browse Jobs",
+      "label": "DAYWORK - Browse Jobs",
       "form_factor": "narrow"
     },
     {
       "src": "/screenshot-wide.png",
       "sizes": "1280x800",
       "type": "image/png",
-      "label": "DAYWORK â€” Post a Gig on Desktop",
+      "label": "DAYWORK - Post a Gig on Desktop",
       "form_factor": "wide"
     }
   ],
