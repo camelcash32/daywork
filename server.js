@@ -147,6 +147,9 @@ const server = http.createServer((req, res) => {
   }
 
   if(url === '/landing' || url === '/landing.html') {
+    if(!db.visits) db.visits = 0;
+    db.visits++;
+    dirty = true;
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
       res.end(fs.readFileSync(path.join(__dirname,'landing.html')));
@@ -163,6 +166,10 @@ const server = http.createServer((req, res) => {
   }
 
   if(url === '/') {
+    // Track site visit
+    if(!db.visits) db.visits = 0;
+    db.visits++;
+    dirty = true;
     res.writeHead(302, {'Location':'/landing'});
     res.end();
     return;
@@ -330,7 +337,9 @@ wss.on('connection', (ws, req) => {
   console.log(`[+] ${ip} connected (${clients.size} total)`);
 
   // Send full state
-  ws.send(JSON.stringify({ type:'init', db, mod: safeModData() }));
+  // Ensure users are included in init
+    if(!db.users) db.users = [];
+    ws.send(JSON.stringify({ type:'init', db, mod: safeModData() }));
 
   ws.on('message', (raw) => {
     try {
