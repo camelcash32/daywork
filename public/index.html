@@ -423,6 +423,62 @@ function renderAuth(accentColor, role, onLogin){
       ap(card2,signupForm);
       ap(box,card2);
 
+    } else if(authView === "verify"){
+      ap(box, pp(null,{fontSize:"10px",fontWeight:"700",color:accentColor,letterSpacing:".18em",marginBottom:"10px"}),"CHECK YOUR EMAIL");
+      ap(box, ap(el("h1",null,{marginBottom:"6px",lineHeight:"1.1"}),"Verify your account"));
+      ap(box, pp(null,{fontSize:"13px",color:"#555",marginBottom:"20px"}),
+        "We sent a 6-digit code to "+(pendingVerify&&pendingVerify.email||"your email")+". Enter it below to continue.");
+      const card2v = div(null,{width:"100%",background:"#131313",border:"1px solid #222",borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"14px"});
+      const codeIn = inp("text","6-digit code","");
+      codeIn.setAttribute("maxlength","6");
+      codeIn.setAttribute("autocomplete","one-time-code");
+      codeIn.style.letterSpacing="0.3em";
+      codeIn.style.fontSize="22px";
+      codeIn.style.textAlign="center";
+      const errV = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
+      const doVerify = ()=>{
+        const entered = codeIn.value.trim();
+        if(!pendingVerify){ errV.textContent="Session expired. Please sign up again."; return; }
+        if(Date.now()>pendingVerify.expires){ errV.textContent="Code expired. Please sign up again."; authView="signup"; rebuild(); return; }
+        if(entered !== String(pendingVerify.code)){ errV.textContent="Incorrect code. Try again."; return; }
+        const newUser={id:"u_"+Date.now(),email:pendingVerify.email,password:pendingVerify.pass,
+          name:pendingVerify.username,joinDate:new Date().toLocaleDateString(),emailVerified:true};
+        const updated=[...load("users",MOCK_USERS),newUser];
+        save("users",updated);
+        pendingUser=newUser;
+        pendingVerify=null;
+        authView="profile";
+        rebuild();
+      };
+      codeIn.addEventListener("keydown",e=>{if(e.key==="Enter")doVerify();});
+      const resendRow=div(null,{textAlign:"center",fontSize:"13px",color:"#555",marginTop:"10px"});
+      const resendLink=ap(el("span",null,{color:accentColor,fontWeight:"700",textDecoration:"underline",cursor:"pointer"}),"Resend code");
+      resendLink.onclick=()=>{
+        if(!pendingVerify){return;}
+        errV.style.color="#22c55e";
+        errV.textContent="Resending…";
+        fetch(location.protocol+"//"+location.host+"/send-verification",{
+          method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({email:pendingVerify.email,code:pendingVerify.code,username:pendingVerify.username})
+        }).then(()=>{
+          pendingVerify.expires=Date.now()+10*60*1000;
+          errV.textContent="Code resent! Check your inbox.";
+        }).catch(()=>{ errV.style.color="#ef4444"; errV.textContent="Could not resend. Check your connection."; });
+      };
+      ap(resendRow,"Didn't get it? ",resendLink);
+      const backV=div(null,{textAlign:"center",fontSize:"13px",color:"#555",marginTop:"8px"});
+      const backVLink=ap(el("span",null,{color:"#a78bfa",fontWeight:"700",textDecoration:"underline",cursor:"pointer"}),"Back to sign up");
+      backVLink.onclick=()=>{authView="signup";rebuild();};
+      ap(backV,backVLink);
+      ap(card2v,
+        ap(div(null,{marginBottom:"14px"}),lbl("VERIFICATION CODE"),codeIn),
+        errV,
+        btn("btn btn-accent",{marginBottom:"8px","--accent":accentColor},doVerify,"Verify & Continue →"),
+        resendRow,
+        backV
+      );
+      ap(box,card2v);
+
     } else if(authView === "profile"){
       ap(box, pp(null,{fontSize:"10px",fontWeight:"700",color:accentColor,letterSpacing:".18em",marginBottom:"10px"}),"ALMOST THERE!");
       ap(box, ap(el("h1",null,{marginBottom:"6px",lineHeight:"1.1"}),"Complete your profile"));
