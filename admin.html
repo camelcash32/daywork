@@ -461,8 +461,12 @@ function modCmd(action,target,extra){
 function go(pg){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
-  document.getElementById('p-'+pg).classList.add('on');
-  document.getElementById('n-'+pg).classList.add('on');
+  const pgEl = document.getElementById('p-'+pg);
+  const niEl = document.getElementById('n-'+pg);
+  if(pgEl) pgEl.classList.add('on');
+  if(niEl) niEl.classList.add('on');
+  if(pg==='jobs') setTimeout(renderAdminJobs, 100);
+  if(pg==='members') setTimeout(renderAdminMembers, 100);
   if(pg==='log') renderLog();
   if(pg==='err') renderErrors();
 }
@@ -725,13 +729,7 @@ function updateStats(){
   if(visEl) visEl.textContent = db.visits || 0;
 }
 
-// Hook into go() to render job/member pages
-const _origGo = typeof go === 'function' ? go : null;
-function go(p){
-  if(_origGo) _origGo(p);
-  if(p==='jobs') setTimeout(renderAdminJobs, 100);
-  if(p==='members') setTimeout(renderAdminMembers, 100);
-}
+
 </script>
 </body>
 </html>
