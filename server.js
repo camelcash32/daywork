@@ -130,6 +130,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if(url === '/ads.txt') {
+    try {
+      res.writeHead(200, {'Content-Type':'text/plain','Access-Control-Allow-Origin':'*'});
+      res.end(require('fs').readFileSync(require('path').join(__dirname,'public','ads.txt')));
+    } catch(e) { res.writeHead(404); res.end('Not found'); }
+    return;
+  }
+
   if(url === '/privacy' || url === '/privacy.html') {
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
