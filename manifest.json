@@ -1,0 +1,31 @@
+{
+  "name": "DAYWORK",
+  "short_name": "DAYWORK",
+  "description": "Find same-day work or hire local workers near you.",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#e8c547",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "id": "com.godaywork.app",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "maskable"
+    }
+  ]
+}
