@@ -329,6 +329,17 @@ let mod={bannedUsers:[],bannedIPs:[],flaggedJobs:[],errors:[],modLog:[],warnings
 let fLog=[], fErr=[];
 
 // Runtime admin store (in-memory, can be extended)
+// Auto-login if session exists
+window.addEventListener('load', function(){
+  try {
+    const saved = sessionStorage.getItem('dw_admin_session');
+    if(saved){
+      const {u, p} = JSON.parse(saved);
+      doLogin(u, p, true);
+    }
+  } catch(e){}
+});
+
 let runtimeAdmins = JSON.parse(localStorage.getItem('dw_admins') || 'null') || {...ADMINS};
 
 function showView(id){
@@ -341,12 +352,13 @@ function togglePassword(){
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
-function doLogin(){
-  const u=document.getElementById('aUser').value.trim();
-  const p=document.getElementById('aPass').value;
+function doLogin(u, p, skipSave){
+  if(!u) u=document.getElementById('aUser').value.trim();
+  if(!p) p=document.getElementById('aPass').value;
   const admin = runtimeAdmins[u];
   if(admin && admin.password === p){
     currentAdmin = { username: u, role: admin.role };
+    if(!skipSave) sessionStorage.setItem('dw_admin_session', JSON.stringify({u, p}));
     document.getElementById('loginWrap').style.display='none';
     document.getElementById('shell').style.display='block';
     document.getElementById('adminName').textContent = u + ' (' + admin.role + ')';
