@@ -130,20 +130,28 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if(url === '/manifest.json') {
-    try { res.writeHead(200,{'Content-Type':'application/manifest+json'}); res.end(fs.readFileSync(path.join(__dirname,'manifest.json'))); } catch(e){res.writeHead(404);res.end();}
+if(url === '/manifest.json') {
+    try { res.writeHead(200,{'Content-Type':'application/manifest+json'}); res.end(fs.readFileSync(path.join(__dirname,'public','manifest.json'))); } catch(e){res.writeHead(404);res.end();}
     return;
   }
   if(url === '/sw.js') {
-    try { res.writeHead(200,{'Content-Type':'application/javascript'}); res.end(fs.readFileSync(path.join(__dirname,'sw.js'))); } catch(e){res.writeHead(404);res.end();}
+    try { res.writeHead(200,{'Content-Type':'application/javascript'}); res.end(fs.readFileSync(path.join(__dirname,'public','sw.js'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url === '/offline.html') {
+    try { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end(fs.readFileSync(path.join(__dirname,'public','offline.html'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url === '/screenshot-wide.png') {
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','screenshot-wide.png'))); } catch(e){res.writeHead(404);res.end();}
     return;
   }
   if(url==='/icon-192.png') {
-    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'icon-192.png'))); } catch(e){res.writeHead(404);res.end();}
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','icon-192.png'))); } catch(e){res.writeHead(404);res.end();}
     return;
   }
   if(url==='/icon-512.png') {
-    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'icon-512.png'))); } catch(e){res.writeHead(404);res.end();}
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','icon-512.png'))); } catch(e){res.writeHead(404);res.end();}
     return;
   }
 
