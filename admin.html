@@ -208,9 +208,6 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
       <button class="ni on" onclick="go('ov')" id="n-ov"><span class="ic">📊</span>Dashboard</button>
       <button class="ni" onclick="go('log')" id="n-log"><span class="ic">📜</span>Mod Log</button>
       <button class="ni" onclick="showAddAdmin()" id="n-addadmin" style="color:#22c55e;border:1px solid rgba(34,197,94,.2);margin-top:4px"><span class="ic">➕</span>Add Admin</button>
-      <div class="nl">CONTENT</div>
-      <button class="ni" onclick="go('jobs')" id="n-jobs"><span class="ic">💼</span>Job Listings</button>
-      <button class="ni" onclick="go('members')" id="n-members"><span class="ic">👥</span>Members</button>
       <div class="nl">ACTIONS</div>
       <button class="ni" onclick="go('rep')" id="n-rep"><span class="ic">🚨</span>Reports<span class="nb" id="b-rep">0</span></button>
       <button class="ni" onclick="go('ban')" id="n-ban"><span class="ic">🚫</span>Bans & IPs</button>
@@ -228,8 +225,8 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
         <div class="ph"><h2>Dashboard</h2><p>Live moderation overview</p></div>
         <div class="stats">
           <div class="stat"><div class="sv g" id="s-job">0</div><div class="sl">ACTIVE JOBS</div></div>
-          <div class="stat"><div class="sv p" id="s-usr">0</div><div class="sl">MEMBERS</div></div>
           <div class="stat"><div class="sv" style="color:#38bdf8" id="s-vis">0</div><div class="sl">SITE VISITS</div></div>
+          <div class="stat"><div class="sv p" id="s-usr">0</div><div class="sl">USERS</div></div>
           <div class="stat"><div class="sv r" id="s-rep">0</div><div class="sl">OPEN REPORTS</div></div>
           <div class="stat"><div class="sv y" id="s-flg">0</div><div class="sl">FLAGGED JOBS</div></div>
           <div class="stat"><div class="sv r" id="s-ban">0</div><div class="sl">TOTAL BANS</div></div>
@@ -239,22 +236,6 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
           <div class="sw"><div class="swt" id="sw-af" onclick="modCmd('toggleAutoFlag','',{})"><div class="swth"></div></div><span style="font-size:13px">Auto-flag jobs with banned words</span></div>
         </div>
         <div class="card"><div class="ctit" style="margin-bottom:10px">🕐 Recent Actions</div><div id="R-log"></div></div>
-      </div>
-
-      <div class="pg" id="p-jobs">
-        <div class="ph"><h2>Job Listings</h2><p>All posted jobs — view, flag, or remove</p></div>
-        <div class="card" style="margin-bottom:16px">
-          <input class="inp" id="job-search" oninput="renderAdminJobs()" placeholder="Search jobs…" style="width:100%;margin-bottom:0">
-        </div>
-        <div id="admin-job-list"></div>
-      </div>
-
-      <div class="pg" id="p-members">
-        <div class="ph"><h2>Members</h2><p>All registered users — view profiles and manage accounts</p></div>
-        <div class="card" style="margin-bottom:16px">
-          <input class="inp" id="member-search" oninput="renderAdminMembers()" placeholder="Search members…" style="width:100%;margin-bottom:0">
-        </div>
-        <div id="admin-member-list"></div>
       </div>
 
       <div class="pg" id="p-log">
@@ -461,12 +442,10 @@ function modCmd(action,target,extra){
 function go(pg){
   document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('on'));
-  const pgEl = document.getElementById('p-'+pg);
-  const niEl = document.getElementById('n-'+pg);
-  if(pgEl) pgEl.classList.add('on');
-  if(niEl) niEl.classList.add('on');
-  if(pg==='jobs') setTimeout(renderAdminJobs, 100);
-  if(pg==='members') setTimeout(renderAdminMembers, 100);
+  const _pe=document.getElementById('p-'+pg);
+  const _ne=document.getElementById('n-'+pg);
+  if(_pe) _pe.classList.add('on');
+  if(_ne) _ne.classList.add('on');
   if(pg==='log') renderLog();
   if(pg==='err') renderErrors();
 }
@@ -536,14 +515,48 @@ function rmJob(id){ if(!confirm('Remove this job?'))return; modCmd('removeJob',i
 
 function renderUsers(){
   const el=document.getElementById('UL'), q=(document.getElementById('UQ').value||'').toLowerCase();
-  const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); }); Object.keys(db.ratings||{}).forEach(n=>names.add(n));
-  let users=[...names].filter(Boolean); if(q) users=users.filter(u=>u.toLowerCase().includes(q));
+  // Combine registered users + users seen in jobs/ratings
+  const names=new Set();
+  (db.users||[]).forEach(u=>{ if(u.name) names.add(u.name); });
+  (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); });
+  Object.keys(db.ratings||{}).forEach(n=>names.add(n));
+  let users=[...names].filter(Boolean);
+  if(q) users=users.filter(u=>u.toLowerCase().includes(q));
   if(!users.length){ el.innerHTML=emp('👥','No users found'); return; }
+  // Update member count
+  const regUsers = (db.users||[]).length;
+  document.getElementById('s-usr').textContent = regUsers || users.length;
   el.innerHTML=''; users.forEach(name=>{
-    const banned=(mod.bannedUsers||[]).find(b=>b.name===name), warned=(mod.warnings||{})[name];
+    const banned=(mod.bannedUsers||[]).find(b=>b.name===name||b===name), warned=(mod.warnings||{})[name];
     const r=db.ratings&&db.ratings[name], posted=(db.jobs||[]).filter(j=>j.postedBy===name).length;
+    // Find registered user profile
+    const regUser = (db.users||[]).find(u=>u.name===name);
     const d=document.createElement('div'); d.className='card';
-    d.innerHTML=`<div class="ct"><div style="display:flex;align-items:center;gap:12px"><div class="av">${name.charAt(0).toUpperCase()}</div><div><div class="ctit">${name}</div><div class="cm">${posted} posted · ${r?'⭐'+r.avg.toFixed(1):'no rating'}${warned&&warned.length?' · ⚠️ '+warned.length+' warn(s)':''}</div></div></div>${banned?'<span class="tag tr">BANNED</span>':'<span class="tag tg">ACTIVE</span>'}</div><div class="ca">${banned?`<button class="btn bg" style="font-size:11px" onclick="modCmd('unbanUser','${name}',{})">✓ Unban</button>`:`<button class="btn br" style="font-size:11px" onclick="modCmd('banUser','${name}',{reason:'Banned by admin'})">🚫 Ban</button>`}<button class="btn by" style="font-size:11px" onclick="document.getElementById('WN').value='${name}';go('wrn')">⚠️ Warn</button><button class="btn bgr" style="font-size:11px" onclick="document.getElementById('JQ').value='${name}';go('job');renderJobs()">📋 Jobs</button></div>`;
+    d.innerHTML=`<div class="ct">
+      <div style="display:flex;align-items:center;gap:12px;flex:1">
+        <div class="av" style="background:${regUser&&regUser.avatar?'none':'linear-gradient(135deg,#e8c547,#a78bfa)'}">
+          ${regUser&&regUser.avatar?`<img src="${regUser.avatar}" style="width:36px;height:36px;border-radius:50%;object-fit:cover">`:name.charAt(0).toUpperCase()}
+        </div>
+        <div style="flex:1">
+          <div class="ctit">${name} ${regUser?'<span style="color:#22c55e;font-size:10px">✓ REGISTERED</span>':''}</div>
+          <div class="cm">
+            ${regUser&&regUser.email?'📧 '+regUser.email+' · ':''}
+            ${posted} jobs posted ·
+            ${r&&r.length?'⭐'+(r.reduce((s,x)=>s+(x.overall||x.stars||0),0)/r.length).toFixed(1):' no rating'}
+            ${warned&&warned.length?' · ⚠️ '+warned.length+' warn(s)':''}
+          </div>
+          ${regUser&&regUser.bio?`<div class="cm" style="margin-top:4px;font-style:italic">"${regUser.bio.slice(0,80)}${regUser.bio.length>80?'...':''}"</div>`:''}
+          ${regUser&&regUser.skills&&regUser.skills.length?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">${regUser.skills.map(s=>`<span style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:4px;padding:1px 6px;font-size:10px;color:#888">${s}</span>`).join('')}</div>`:''}
+          ${regUser&&regUser.joinDate?`<div class="cm" style="margin-top:2px">Joined: ${regUser.joinDate}</div>`:''}
+        </div>
+      </div>
+      ${banned?'<span class="tag tr">BANNED</span>':'<span class="tag tg">ACTIVE</span>'}
+    </div>
+    <div class="ca">
+      ${banned?`<button class="btn bg" style="font-size:11px" onclick="modCmd('unbanUser','${name}',{})">✓ Unban</button>`:`<button class="btn br" style="font-size:11px" onclick="modCmd('banUser','${name}',{reason:'Banned by admin'})">🚫 Ban</button>`}
+      <button class="btn by" style="font-size:11px" onclick="document.getElementById('WN').value='${name}';go('wrn')">⚠️ Warn</button>
+      <button class="btn bgr" style="font-size:11px" onclick="document.getElementById('JQ').value='${name}';go('job');renderJobs()">📋 Their Jobs</button>
+    </div>`;
     el.appendChild(d);
   });
 }
@@ -582,154 +595,6 @@ function lRow(l){
 function st(id,val){ const e=document.getElementById(id); if(e)e.textContent=val; }
 function emp(ico,txt){ return `<div class="emp"><div class="emp-i">${ico}</div><div style="font-size:13px">${txt}</div></div>`; }
 function toast(msg,type){ const t=document.getElementById('T'); t.textContent=msg; t.className='toast'+(type?' '+type:''); void t.offsetWidth; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
-
-function renderAdminJobs(){
-  const el = document.getElementById('admin-job-list');
-  if(!el) return;
-  const q = (document.getElementById('job-search').value||'').toLowerCase();
-  let jobs = [...(db.jobs||[])];
-  if(q) jobs = jobs.filter(j =>
-    (j.title||'').toLowerCase().includes(q) ||
-    (j.postedBy||'').toLowerCase().includes(q) ||
-    (j.location||'').toLowerCase().includes(q)
-  );
-  if(!jobs.length){
-    el.innerHTML = '<div class="card" style="text-align:center;color:#555;padding:40px">No jobs found</div>';
-    return;
-  }
-  el.innerHTML = '';
-  jobs.forEach(job => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.style.marginBottom = '12px';
-    const flagged = (mod.flaggedJobs||[]).includes(job.id);
-    card.innerHTML = \`
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:15px;margin-bottom:4px">
-            \${flagged ? '<span style="color:#f97316">🚩 </span>' : ''}
-            \${job.title||'Untitled'}
-          </div>
-          <div style="font-size:12px;color:#555;margin-bottom:6px">
-            Posted by <b style="color:#aaa">\${job.postedBy||'?'}</b> ·
-            \${job.location||job.zip||'No location'} ·
-            \${job.pay||'No pay listed'} ·
-            \${job.category||'General'}
-          </div>
-          <div style="font-size:12px;color:#444">\${(job.description||'').slice(0,120)}\${(job.description||'').length>120?'...':''}</div>
-          <div style="font-size:11px;color:#333;margin-top:6px">
-            Applicants: \${(job.applicants||[]).length} · Slots: \${job.slots||1} · 
-            \${job.urgent?'<span style="color:#f97316">⚡ URGENT</span>':''}
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-          <button class="btn" onclick="toggleFlagJob('\${job.id}')" style="font-size:11px;padding:5px 10px;background:\${flagged?'rgba(249,115,22,.15)':'none'};border-color:\${flagged?'rgba(249,115,22,.4)':'#2a2a2a'};color:\${flagged?'#f97316':'#888'}">
-            \${flagged ? '🚩 Unflag' : '🚩 Flag'}
-          </button>
-          <button class="btn" onclick="removeJob('\${job.id}')" style="font-size:11px;padding:5px 10px;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444">
-            🗑 Remove
-          </button>
-        </div>
-      </div>
-    \`;
-    el.appendChild(card);
-  });
-}
-
-function toggleFlagJob(jobId){
-  if(!confirm('Toggle flag on this job?')) return;
-  modCmd('flagJob', jobId, {});
-  setTimeout(renderAdminJobs, 500);
-}
-
-function removeJob(jobId){
-  if(!confirm('Permanently remove this job listing?')) return;
-  db.jobs = (db.jobs||[]).filter(j => j.id != jobId);
-  ws.send(JSON.stringify({type:'mod', action:'removeJob', target:jobId}));
-  renderAdminJobs();
-  document.getElementById('s-job').textContent = (db.jobs||[]).length;
-}
-
-function renderAdminMembers(){
-  const el = document.getElementById('admin-member-list');
-  if(!el) return;
-  const q = (document.getElementById('member-search').value||'').toLowerCase();
-  let users = [...(db.users||[])];
-  if(q) users = users.filter(u =>
-    (u.name||'').toLowerCase().includes(q) ||
-    (u.email||'').toLowerCase().includes(q)
-  );
-  if(!users.length){
-    el.innerHTML = '<div class="card" style="text-align:center;color:#555;padding:40px">No members found</div>';
-    return;
-  }
-  el.innerHTML = '';
-  users.forEach(user => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.style.marginBottom = '12px';
-    const banned = (mod.bannedUsers||[]).includes(user.name);
-    const userJobs = (db.jobs||[]).filter(j => j.postedBy === user.name);
-    const userRating = db.ratings && db.ratings[user.name];
-    const avgRating = userRating && userRating.length ?
-      (userRating.reduce((s,r)=>s+(r.overall||r.stars||0),0)/userRating.length).toFixed(1) : null;
-    card.innerHTML = \`
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div style="flex:1">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-            <div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#e8c547,#a78bfa);
-              display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;color:#0f0f0f;flex-shrink:0">
-              \${user.avatar ? \`<img src="\${user.avatar}" style="width:40px;height:40px;border-radius:50%;object-fit:cover">\` : (user.name||'?').charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <div style="font-weight:700;font-size:15px">\${user.name||'Unknown'} \${banned?'<span style="color:#ef4444;font-size:11px">[BANNED]</span>':''}</div>
-              <div style="font-size:12px;color:#555">\${user.email||'No email'}</div>
-            </div>
-          </div>
-          <div style="font-size:12px;color:#444;display:flex;gap:16px;flex-wrap:wrap">
-            <span>📅 Joined: \${user.joinDate||'Unknown'}</span>
-            <span>💼 Jobs posted: \${userJobs.length}</span>
-            \${avgRating ? \`<span>⭐ Rating: \${avgRating}</span>\` : ''}
-            \${user.bio ? \`<span style="color:#666">"\${user.bio.slice(0,60)}\${user.bio.length>60?'...':''}"</span>\` : ''}
-          </div>
-          \${user.skills && user.skills.length ? \`
-            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-              \${user.skills.map(s=>\`<span style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;padding:2px 8px;font-size:11px;color:#888">\${s}</span>\`).join('')}
-            </div>
-          \` : ''}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-          <button class="btn" onclick="viewMemberJobs('\${user.name}')" style="font-size:11px;padding:5px 10px">
-            💼 Their Jobs
-          </button>
-          <button class="btn" onclick="banUser('\${user.name}')" style="font-size:11px;padding:5px 10px;\${banned?'background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:#22c55e':'background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444'}">
-            \${banned ? '✓ Unban' : '🚫 Ban'}
-          </button>
-        </div>
-      </div>
-    \`;
-    el.appendChild(card);
-  });
-}
-
-function viewMemberJobs(name){
-  document.getElementById('job-search').value = name;
-  go('jobs');
-  renderAdminJobs();
-}
-
-// Update stats with visit counter
-function updateStats(){
-  document.getElementById('s-job').textContent = (db.jobs||[]).filter(j=>!j.expired).length;
-  document.getElementById('s-usr').textContent = (db.users||[]).length;
-  document.getElementById('s-rep').textContent = (db.reports||[]).filter(r=>r.status==='pending').length;
-  document.getElementById('s-flg').textContent = (mod.flaggedJobs||[]).length;
-  document.getElementById('s-ban').textContent = (mod.bannedUsers||[]).length + (mod.bannedIPs||[]).length;
-  const visEl = document.getElementById('s-vis');
-  if(visEl) visEl.textContent = db.visits || 0;
-}
-
-
 </script>
 </body>
 </html>
