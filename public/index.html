@@ -127,6 +127,7 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
 <!-- AdSense auto ads — once approved, uncomment the script above -->
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5202919416264871"
      crossorigin="anonymous"></script>
+
 </head>
 <body>
 <div id="app"></div>
@@ -361,27 +362,14 @@ function renderAuth(accentColor, role, onLogin){
         const users=load("users",MOCK_USERS);
         if(users.find(u=>u.email===email)){errS.textContent="Email already in use.";return;}
         if(users.find(u=>u.name&&u.name.toLowerCase()===username.toLowerCase())){errS.textContent="Username taken.";return;}
-        const code=String(Math.floor(100000+Math.random()*900000));
         try{localStorage.setItem('dw_tosAccepted','1');}catch(e){}
-        pendingVerify={code,email,username,expires:Date.now()+10*60*1000,pass,pendingUsername:username};
-        _savedPendingVerify=pendingVerify;
-        errS.style.color="#22c55e"; errS.textContent="Sending verification code to "+email+"…";
-        fetch(location.protocol+"//"+location.host+"/send-verification",{
-          method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({email,code,username})
-        })
-        .then(r=>r.json())
-        .then(data=>{
-          authView="verify"; _savedAuthView="verify";
-          rebuild();
-        })
-        .catch(()=>{
-          const newUser={id:"u_"+Date.now(),email,password:pass,name:username,joinDate:new Date().toLocaleDateString(),emailVerified:false};
-          const updated=[...load("users",MOCK_USERS),newUser];
-          save("users",updated);
-          pendingUser=newUser; authView="profile"; _savedAuthView="profile";
-          rebuild();
-        });
+        // Create account directly — no email verification required
+        const newUser={id:"u_"+Date.now(),email,password:pass,name:username,
+          joinDate:new Date().toLocaleDateString(),emailVerified:true};
+        const updated=[...load("users",MOCK_USERS),newUser];
+        save("users",updated);
+        pendingUser=newUser; authView="profile"; _savedAuthView="profile";
+        rebuild();
       };
       pw2.addEventListener("keydown",e=>{if(e.key==="Enter")doSignup();});
       const backRow=div(null,{textAlign:"center",fontSize:"13px",color:"#555"});

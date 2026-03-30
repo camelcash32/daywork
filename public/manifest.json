@@ -1,0 +1,22 @@
+{
+  "name": "DAYWORK \u2014 Same-Day Gigs",
+  "short_name": "DAYWORK",
+  "description": "Find same-day work or hire local workers near you.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#e8c547",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
