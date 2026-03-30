@@ -138,8 +138,12 @@ const server = http.createServer((req, res) => {
     try { res.writeHead(200,{'Content-Type':'application/javascript'}); res.end(fs.readFileSync(path.join(__dirname,'sw.js'))); } catch(e){res.writeHead(404);res.end();}
     return;
   }
-  if(url==='/icon-192.png'||url==='/icon-512.png') {
+  if(url==='/icon-192.png') {
     try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'icon-192.png'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url==='/icon-512.png') {
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'icon-512.png'))); } catch(e){res.writeHead(404);res.end();}
     return;
   }
 
