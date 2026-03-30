@@ -130,6 +130,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if(url === '/manifest.json') {
+    try { res.writeHead(200,{'Content-Type':'application/manifest+json'}); res.end(fs.readFileSync(path.join(__dirname,'public','manifest.json'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url === '/sw.js') {
+    try { res.writeHead(200,{'Content-Type':'application/javascript'}); res.end(fs.readFileSync(path.join(__dirname,'public','sw.js'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url==='/icon-192.png'||url==='/icon-512.png') {
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','icon-192.png'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+
   if(url === '/ads.txt') {
     try {
       res.writeHead(200, {'Content-Type':'text/plain','Access-Control-Allow-Origin':'*'});
