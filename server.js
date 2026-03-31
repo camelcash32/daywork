@@ -162,7 +162,11 @@ if(url === '/manifest.json') {
     } catch(e) { res.writeHead(404); res.end('Not found'); }
     return;
   }
-
+if(url === '/.well-known/assetlinks.json') {
+    try { res.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(fs.readFileSync(path.join(__dirname,'public','.well-known','assetlinks.json'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  
   if(url === '/privacy' || url === '/privacy.html') {
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
