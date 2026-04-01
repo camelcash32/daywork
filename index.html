@@ -791,7 +791,7 @@ let mode=load("userMode","seeker");
 let jobs=[]; // populated by server via WebSocket
 function pruneExpired(){return pruneExpiredJobs(jobs||[]);}
 let ratings=load("ratings",INITIAL_RATINGS);
-let formS={title:"",category:"General Labor",pay:"",payAmount:"",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
+let formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
 let bulletinPosts=[];
 let editId=null, cardOpen=false; // cardOpen unused - free posting
 let cardS={number:"",expiry:"",cvv:"",name:""};
@@ -906,7 +906,8 @@ function renderForm(){
   const myJobs=jobs.filter(j=>j.postedBy===U.name);
   const fzInfo=formS.zip.length===5?ZIP_DATA[formS.zip]||null:null;
   const fzBad=formS.zip.length===5&&!ZIP_DATA[formS.zip];
-  const can=!!(formS.title&&formS.payAmount&&formS.date&&formS.zip.length===5&&fzInfo);
+  const _payAmt=parseFloat(formS.payAmount||0);
+  const can=!!(formS.title&&formS.payAmount&&_payAmt>0&&_payAmt<=200&&formS.date&&formS.zip.length===5&&fzInfo);
 
   const titleIn=inp("text","e.g. Help Moving Furniture",formS.title,e=>{formS.title=e.target.value;refreshSubmit();});
   const catSel=el("select");
@@ -920,12 +921,16 @@ function renderForm(){
   urgCb.checked=formS.urgent;urgCb.addEventListener("change",e=>formS.urgent=e.target.checked);
   const zipIn=inp("text","e.g. 78701",formS.zip,e=>{formS.zip=e.target.value.replace(/\D/g,"").slice(0,5);refreshSubmit();if(formS.zip.length===0||formS.zip.length===5)rerender();},{borderColor:fzBad?"#ef4444":fzInfo?"#e8c547":""},{"maxlength":"5"});
   const zipFb=fzInfo?pp(null,{color:"#22c55e",fontSize:"12px",marginTop:"4px"},"📍 "+fzInfo.city+", "+fzInfo.state):fzBad?pp(null,{color:"#ef4444",fontSize:"12px",marginTop:"4px"},"ZIP not found"):el("span");
-  const payAmtIn=inp("text","e.g. 50.00",formS.payAmount,e=>{formS.payAmount=e.target.value.replace(/[^0-9.]/g,"");refreshSubmit();},{});
+  const payAmtIn=inp("text","e.g. 50.00",formS.payAmount,e=>{let v=e.target.value.replace(/[^0-9.]/g,"");if(parseFloat(v)>200){v="200";e.target.value="200";}formS.payAmount=v;refreshSubmit();},{});
+  const payTypeSel=el("select",null,{background:"#111",color:"#fff",border:"1px solid #222",borderRadius:"8px",padding:"10px 10px",fontSize:"14px",cursor:"pointer"});
+  [["flat","Flat"],["hourly","Per Hour"]].forEach(([val,lbl])=>{const o=el("option",null,{},{value:val});o.textContent=lbl;if(val===formS.payType)o.selected=true;payTypeSel.appendChild(o);});
+  payTypeSel.addEventListener("change",e=>{formS.payType=e.target.value;});
 
   // Live can check - always reads current formS
   function canCheck(){
     const zi=formS.zip.length===5?ZIP_DATA[formS.zip]||null:null;
-    return !!(formS.title&&formS.payAmount&&formS.date&&formS.zip.length===5&&zi);
+    const pa=parseFloat(formS.payAmount||0);
+    return !!(formS.title&&formS.payAmount&&pa>0&&pa<=200&&formS.date&&formS.zip.length===5&&zi);
   }
   let _postBtn=null;
   function refreshSubmit(){
@@ -940,7 +945,7 @@ function renderForm(){
   const submitWrap=div(null,{marginTop:"4px"});
   if(editId){
     const saveB=btn(canCheck()?"btn btn-g":"btn btn-d",{},()=>{if(canCheck()){doPublish();rerender();}else showToast("⚠️ Fill required fields.");},"✓ Update Job");
-    const cancelB=btn("btn btn-d",{marginTop:"8px"},()=>{editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};rerender();},"✕ Cancel");
+    const cancelB=btn("btn btn-d",{marginTop:"8px"},()=>{editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};rerender();},"✕ Cancel");
     ap(submitWrap,saveB,cancelB);
   } else {
     const ok=canCheck();
@@ -973,7 +978,7 @@ function renderForm(){
     ),
     fld("Job Title *",titleIn),
     div("g2",{},fld("Category",catSel),fld("Workers Needed",slotsIn)),
-    div("g2",{},fld("Pay Amount * ($)",payAmtIn),fld("Duration",durIn)),
+    div("g2",{},ap(div(null,{}),ap(el("label","lbl",{}),"Pay Amount * ($, max $200)"),div(null,{display:"flex",gap:"6px"},payAmtIn,payTypeSel),(_payAmt>200?pp(null,{color:"#ef4444",fontSize:"12px",marginTop:"4px"},"⚠️ Max is $200"):el("span"))),fld("Duration",durIn)),
     div("g2",{},ap(div(null,{}),ap(el("label","lbl",{}),"Job ZIP *"),zipIn,zipFb),fld("Date / Time *",dateIn)),
     fld("Description",descIn),
     buildPhotoUpload(),
@@ -1004,8 +1009,8 @@ function renderForm(){
         ),
         div(null,{display:"flex",gap:"7px"},
           btn("btn btn-d",{padding:"6px",fontSize:"11px",flex:"1"},()=>{
-            if(isEd){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
-            else{editId=job.id;formS={title:job.title,category:job.category,pay:job.pay,payAmount:job.payAmount||"",duration:job.duration||"",zip:job.zip,date:job.date,slots:String(job.slots),description:job.description||"",urgent:job.urgent||false};cardOpen=false;window.scrollTo({top:0,behavior:"smooth"});}
+            if(isEd){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
+            else{editId=job.id;formS={title:job.title,category:job.category,pay:job.pay,payAmount:job.payAmount||"",payType:job.payType||"flat",duration:job.duration||"",zip:job.zip,date:job.date,slots:String(job.slots),description:job.description||"",urgent:job.urgent||false};cardOpen=false;window.scrollTo({top:0,behavior:"smooth"});}
             rerender();
           },isEd?"✕ Cancel":"✏️ Edit"),
           btn("btn btn-d",{padding:"6px",fontSize:"11px",flex:"1"},()=>{
@@ -1015,7 +1020,7 @@ function renderForm(){
           },"⏰ Extend"),
           btn("btn btn-d",{padding:"6px",fontSize:"11px",flex:"1"},()=>{
             jobs=jobs.filter(j=>j.id!==job.id);save("jobs",jobs);
-            if(editId===job.id){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
+            if(editId===job.id){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
             showToast("🗑 Deleted.");rerender();
           },"🗑")
         )
@@ -1097,8 +1102,8 @@ function doPublish(){
   const fzInfo=ZIP_DATA[formS.zip]||{city:formS.zip,state:""};
   const loc=fzInfo.state?fzInfo.city+", "+fzInfo.state:fzInfo.city;
   const expiresAt=Date.now()+DAY_MS;
-  // Auto-generate pay display string from payAmount
-  formS.pay = formS.payAmount ? "$"+parseFloat(formS.payAmount).toFixed(2)+" flat" : formS.pay;
+  // Auto-generate pay display string from payAmount + payType
+  formS.pay = formS.payAmount ? "$"+parseFloat(formS.payAmount).toFixed(2)+(formS.payType==="hourly"?"/hr":" flat") : formS.pay;
   if(editId){
     jobs=jobs.map(j=>j.id===editId?{...j,...formS,location:loc,slots:parseInt(formS.slots),expiresAt}:j);
     showToast("✏️ Job updated! Timer reset to 24h.");
@@ -1107,7 +1112,7 @@ function doPublish(){
     showToast("✅ Job posted! Expires in 24 hours.");
   }
   save("jobs",jobs);editId=null;
-  formS={title:"",category:"General Labor",pay:"",payAmount:"",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
+  formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
 }
 
 function renderApplicants(){
