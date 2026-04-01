@@ -18,8 +18,9 @@ function getCfg() {
 }
 const WebSocket = require('ws');
 
-const DATA_FILE = path.join(__dirname, 'data.json');
-const MOD_FILE  = path.join(__dirname, 'moderation.json');
+const DATA_DIR  = process.env.DATA_DIR || __dirname;
+const DATA_FILE = path.join(DATA_DIR, 'data.json');
+const MOD_FILE  = path.join(DATA_DIR, 'moderation.json');
 
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
