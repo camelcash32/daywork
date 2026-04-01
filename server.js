@@ -641,6 +641,10 @@ if(url === '/.well-known/assetlinks.json') {
           res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
           res.end(JSON.stringify({ error:'Amount must be at least $0.50' })); return;
         }
+        if (amountCents > 20000) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Amount cannot exceed $200' })); return;
+        }
         const PLATFORM_FEE = 0.07;
         const feeCents = Math.round(amountCents * PLATFORM_FEE);
         const appUrl = cfg.app_url || 'http://localhost:3000';
