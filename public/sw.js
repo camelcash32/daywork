@@ -1,9 +1,9 @@
-const CACHE_NAME = 'daywork-v3';
+const CACHE_NAME = 'daywork-v4';
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE_URLS = [
-  '/',
-  '/index.html',
+  '/app',
+  '/landing',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
