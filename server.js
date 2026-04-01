@@ -534,6 +534,80 @@ if(url === '/.well-known/assetlinks.json') {
     return;
   }
 
+  // ── STRIPE CONNECT: worker onboarding ───────────────────────
+  // POST /connect-onboard  { username } → returns { url } for Stripe Express onboarding
+  if (url === '/connect-onboard' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured.' })); return;
+        }
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { username } = JSON.parse(body);
+        if (!username) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'Missing username'})); return; }
+
+        // Find or create Stripe Connect account for this worker
+        if (!db.users) db.users = [];
+        const user = db.users.find(u => u.name === username);
+        if (!user) { res.writeHead(404, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'User not found'})); return; }
+
+        let accountId = user.stripeConnectId;
+        if (!accountId) {
+          const account = await stripe.accounts.create({ type: 'express', country: 'US', capabilities: { transfers: { requested: true } } });
+          accountId = account.id;
+          user.stripeConnectId = accountId;
+          user.stripeConnectStatus = 'pending';
+          saveDB();
+          broadcast({ type:'update', key:'users', val:db.users });
+        }
+
+        const appUrl = cfg.app_url || 'http://localhost:3000';
+        const accountLink = await stripe.accountLinks.create({
+          account: accountId,
+          refresh_url: appUrl + '/index.html?connect=refresh',
+          return_url:  appUrl + '/index.html?connect=success',
+          type: 'account_onboarding',
+        });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ url: accountLink.url }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /connect-status?username=X → { connected: bool, status }
+  if (url === '/connect-status' && req.method === 'GET') {
+    (async () => { try {
+      const qs = require('url').parse(req.url, true).query;
+      const username = qs.username;
+      if (!username) { res.writeHead(400); res.end('Missing username'); return; }
+      const user = (db.users||[]).find(u => u.name === username);
+      if (!user || !user.stripeConnectId) {
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ connected: false })); return;
+      }
+      const cfg = getCfg();
+      const stripe = require('stripe')(cfg.stripe_secret_key);
+      const account = await stripe.accounts.retrieve(user.stripeConnectId);
+      const connected = account.charges_enabled && account.payouts_enabled;
+      user.stripeConnectStatus = connected ? 'active' : 'pending';
+      saveDB();
+      res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ connected, status: user.stripeConnectStatus, accountId: user.stripeConnectId }));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ error: e.message }));
+    }})();
+    return;
+  }
+
   // ── STRIPE PAYMENT ──────────────────────────────────────────
   // POST /create-payment → create Stripe Checkout Session
   if (url === '/create-payment' && req.method === 'POST') {
@@ -571,14 +645,28 @@ if(url === '/.well-known/assetlinks.json') {
         if (tipCents >= 50) {
           lineItems.push({ price_data: { currency:'usd', product_data:{ name: 'Tip for '+workerName, description:'100% goes to the worker' }, unit_amount: tipCents }, quantity:1 });
         }
-        const session = await stripe.checkout.sessions.create({
+
+        // Look up worker's Stripe Connect account
+        const workerUser = (db.users||[]).find(u => u.name === workerName);
+        const workerConnectId = workerUser?.stripeConnectId && workerUser?.stripeConnectStatus === 'active'
+          ? workerUser.stripeConnectId : null;
+
+        // Build session — if worker has Connect, add transfer_data so funds go to them (minus platform fee)
+        const sessionParams = {
           payment_method_types: ['card'],
           line_items: lineItems,
           mode: 'payment',
           success_url: appUrl+'/index.html?payment=success&session_id={CHECKOUT_SESSION_ID}',
           cancel_url: appUrl+'/index.html?payment=cancelled',
-          metadata: { jobTitle, workerName, hirerId }
-        });
+          metadata: { jobTitle, workerName, hirerId, workerConnectId: workerConnectId||'' }
+        };
+        if (workerConnectId) {
+          sessionParams.payment_intent_data = {
+            application_fee_amount: feeCents,
+            transfer_data: { destination: workerConnectId }
+          };
+        }
+        const session = await stripe.checkout.sessions.create(sessionParams);
         // Store payment record
         if (!db.payments) db.payments = [];
         db.payments.unshift({
@@ -589,6 +677,7 @@ if(url === '/.well-known/assetlinks.json') {
           fee: feeCents/100,
           total: (workerAmountCents+feeCents+tipCents)/100,
           status: 'pending',
+          workerPaidDirect: !!workerConnectId,
           date: new Date().toISOString()
         });
         if (db.payments.length > 1000) db.payments = db.payments.slice(0,1000);
