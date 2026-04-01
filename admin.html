@@ -228,6 +228,7 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
         <div class="stats">
           <div class="stat"><div class="sv g" id="s-job">0</div><div class="sl">ACTIVE JOBS</div></div>
           <div class="stat"><div class="sv p" id="s-usr">0</div><div class="sl">USERS</div></div>
+          <div class="stat"><div class="sv g" id="s-signup">0</div><div class="sl">TOTAL SIGNUPS</div></div>
           <div class="stat"><div class="sv r" id="s-rep">0</div><div class="sl">OPEN REPORTS</div></div>
           <div class="stat"><div class="sv y" id="s-flg">0</div><div class="sl">FLAGGED JOBS</div></div>
           <div class="stat"><div class="sv r" id="s-ban">0</div><div class="sl">TOTAL BANS</div></div>
@@ -505,7 +506,9 @@ function rStats(){
   const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
   const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); });
   Object.keys(db.ratings||{}).forEach(n=>names.add(n));
+  (db.users||[]).forEach(u=>{ if(u.name) names.add(u.name); });
   st('s-job',(db.jobs||[]).length); st('s-usr',names.size); st('s-rep',pr);
+  st('s-signup', db.totalSignups||0);
   st('s-flg',(mod.flaggedJobs||[]).length); st('s-ban',(mod.bannedUsers||[]).length+(mod.bannedIPs||[]).length);
 }
 function updBadges(){
@@ -564,7 +567,7 @@ function rmJob(id){ if(!confirm('Remove this job?'))return; modCmd('removeJob',i
 
 function renderUsers(){
   const el=document.getElementById('UL'), q=(document.getElementById('UQ').value||'').toLowerCase();
-  const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); }); Object.keys(db.ratings||{}).forEach(n=>names.add(n));
+  const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); }); Object.keys(db.ratings||{}).forEach(n=>names.add(n)); (db.users||[]).forEach(u=>{ if(u.name) names.add(u.name); });
   let users=[...names].filter(Boolean); if(q) users=users.filter(u=>u.toLowerCase().includes(q));
   if(!users.length){ el.innerHTML=emp('👥','No users found'); return; }
   el.innerHTML=''; users.forEach(name=>{
