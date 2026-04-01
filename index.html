@@ -217,12 +217,21 @@ function debounceSearch(){
 }
 function showToast(msg){document.querySelectorAll(".toast").forEach(t=>t.remove());const t=ap(el("div","toast",{})," "+msg);document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
 function stripePayWorker(job,workerName){
+  // Check if worker has payout account set up
+  const allUsers = (() => { try { return JSON.parse(localStorage.getItem('dw_users')||'[]'); } catch(e) { return []; } })();
+  const workerUser = allUsers.find(u => u.name === workerName);
+  const workerHasPayouts = workerUser && workerUser.stripeConnectStatus === 'active';
+
   // Build tip modal
   const overlay=div(null,{position:"fixed",inset:"0",background:"rgba(0,0,0,.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:"99999",padding:"20px"});
   const modal=div(null,{background:"#0d0d12",border:"1px solid #252535",borderRadius:"16px",padding:"28px",width:"100%",maxWidth:"380px"});
   ap(modal,
     p2(null,{fontSize:"10px",fontWeight:"700",letterSpacing:".15em",color:"#a78bfa",marginBottom:"6px"},"STRIPE CHECKOUT"),
     ap(el("h2",null,{fontSize:"22px",fontWeight:"900",marginBottom:"20px"}),"Confirm Payment"),
+    !workerHasPayouts ? div(null,{background:"rgba(245,158,11,.07)",border:"1px solid rgba(245,158,11,.25)",borderRadius:"8px",padding:"10px 14px",marginBottom:"14px",display:"flex",gap:"8px",alignItems:"flex-start"},
+      ap(el("span",null,{fontSize:"16px",flexShrink:"0"}),"⚠️"),
+      ap(el("span",null,{fontSize:"12px",color:"#f59e0b",lineHeight:"1.5"}),workerName+" hasn't set up their payout account yet. The payment will still go through, but they won't be able to receive the funds until they connect their bank via Settings → Set Up Payouts.")
+    ) : ap(el("span")),
     div(null,{background:"#12121a",border:"1px solid #1c1c28",borderRadius:"10px",padding:"14px",marginBottom:"16px"},
       div(null,{display:"flex",justifyContent:"space-between",marginBottom:"8px"},
         p2(null,{fontSize:"13px",color:"#888"},"Job: "+job.title),
@@ -235,7 +244,9 @@ function stripePayWorker(job,workerName){
       div(null,{height:"1px",background:"#1c1c28",margin:"10px 0"}),
       div(null,{display:"flex",justifyContent:"space-between"},
         p2(null,{fontSize:"13px",color:"#888"},"Worker: "+workerName),
-        p2(null,{fontSize:"12px",color:"#22c55e"},"💳 Paid via Stripe")
+        workerHasPayouts
+          ? p2(null,{fontSize:"12px",color:"#22c55e"},"💳 Direct to their account")
+          : p2(null,{fontSize:"12px",color:"#f59e0b"},"⚠️ Payouts not set up yet")
       )
     ),
     ap(el("label",null,{fontSize:"10px",fontWeight:"700",letterSpacing:".1em",color:"#555",display:"block",marginBottom:"6px"}),"ADD A TIP FOR "+workerName.toUpperCase()+" (optional — 100% goes to them)"),
@@ -895,14 +906,13 @@ function renderForm(){
   const myJobs=jobs.filter(j=>j.postedBy===U.name);
   const fzInfo=formS.zip.length===5?ZIP_DATA[formS.zip]||null:null;
   const fzBad=formS.zip.length===5&&!ZIP_DATA[formS.zip];
-  const can=!!(formS.title&&formS.pay&&formS.payAmount&&formS.date&&formS.zip.length===5&&fzInfo);
+  const can=!!(formS.title&&formS.payAmount&&formS.date&&formS.zip.length===5&&fzInfo);
 
   const titleIn=inp("text","e.g. Help Moving Furniture",formS.title,e=>{formS.title=e.target.value;refreshSubmit();});
   const catSel=el("select");
   CATS.filter(c=>c!=="All").forEach(c=>{const o=ap(el("option",null,{},{value:c}),c);if(c===formS.category)o.selected=true;catSel.appendChild(o);});
   catSel.addEventListener("change",e=>formS.category=e.target.value);
   const slotsIn=inp("number","1",formS.slots,e=>formS.slots=e.target.value,{},{min:"1",max:"20"});
-  const payIn=inp("text","e.g. $18/hr or $150 flat",formS.pay,e=>{formS.pay=e.target.value;refreshSubmit();});
   const durIn=inp("text","e.g. 4–6 hrs",formS.duration,e=>formS.duration=e.target.value);
   const dateIn=inp("text","e.g. Tomorrow, 8AM",formS.date,e=>{formS.date=e.target.value;refreshSubmit();});
   const descIn=el("textarea",null,{});descIn.placeholder="What will workers be doing?";descIn.value=formS.description;descIn.addEventListener("input",e=>formS.description=e.target.value);
@@ -915,7 +925,7 @@ function renderForm(){
   // Live can check - always reads current formS
   function canCheck(){
     const zi=formS.zip.length===5?ZIP_DATA[formS.zip]||null:null;
-    return !!(formS.title&&formS.pay&&formS.payAmount&&formS.date&&formS.zip.length===5&&zi);
+    return !!(formS.title&&formS.payAmount&&formS.date&&formS.zip.length===5&&zi);
   }
   let _postBtn=null;
   function refreshSubmit(){
@@ -938,10 +948,9 @@ function renderForm(){
       if(!canCheck()){
         const missing=[];
         if(!formS.title) missing.push("Job Title");
-        if(!formS.pay) missing.push("Pay Rate");
         if(!formS.date) missing.push("Date/Time");
         if(formS.zip.length!==5||!ZIP_DATA[formS.zip]) missing.push("Valid ZIP");
-        if(!formS.payAmount) missing.push("Stripe Pay Amount");
+        if(!formS.payAmount) missing.push("Pay Amount");
         showToast("⚠️ Missing: "+missing.join(", "));
         return;
       }
@@ -964,8 +973,7 @@ function renderForm(){
     ),
     fld("Job Title *",titleIn),
     div("g2",{},fld("Category",catSel),fld("Workers Needed",slotsIn)),
-    div("g2",{},fld("Pay Rate *",payIn),fld("Duration",durIn)),
-    div("g2",{},fld("Stripe Pay Amount * ($)",payAmtIn),ap(div(null,{background:"rgba(123,92,255,.06)",border:"1px solid rgba(123,92,255,.2)",borderRadius:"8px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px"}),sp(null,{fontSize:"20px"},"💳"),ap(el("span",null,{fontSize:"12px",color:"#888",lineHeight:"1.4"}),"Workers are paid via ",ap(el("strong",null,{color:"#a78bfa"}),"Stripe"),".",ap(el("br")),"Seeker sees exact amount."))),
+    div("g2",{},fld("Pay Amount * ($)",payAmtIn),fld("Duration",durIn)),
     div("g2",{},ap(div(null,{}),ap(el("label","lbl",{}),"Job ZIP *"),zipIn,zipFb),fld("Date / Time *",dateIn)),
     fld("Description",descIn),
     buildPhotoUpload(),
@@ -1089,6 +1097,8 @@ function doPublish(){
   const fzInfo=ZIP_DATA[formS.zip]||{city:formS.zip,state:""};
   const loc=fzInfo.state?fzInfo.city+", "+fzInfo.state:fzInfo.city;
   const expiresAt=Date.now()+DAY_MS;
+  // Auto-generate pay display string from payAmount
+  formS.pay = formS.payAmount ? "$"+parseFloat(formS.payAmount).toFixed(2)+" flat" : formS.pay;
   if(editId){
     jobs=jobs.map(j=>j.id===editId?{...j,...formS,location:loc,slots:parseInt(formS.slots),expiresAt}:j);
     showToast("✏️ Job updated! Timer reset to 24h.");
@@ -2284,6 +2294,40 @@ wsConnect();
     history.replaceState(null,'','/index.html');
     setTimeout(()=>showToast('↩ Payment cancelled.'),500);
   }
+  // ── Stripe Connect return ──────────────────────────────────
+  const connect = params.get('connect');
+  if (connect === 'success' || connect === 'refresh') {
+    history.replaceState(null,'','/index.html');
+    if (connect === 'success') {
+      // Check status and update user record
+      setTimeout(async () => {
+        try {
+          const savedUser = load('currentUser', null);
+          if (!savedUser) return;
+          const r = await fetch('/connect-status?username=' + encodeURIComponent(savedUser.name));
+          const d = await r.json();
+          if (d.connected) {
+            U = { ...savedUser, stripeConnectId: d.accountId, stripeConnectStatus: 'active' };
+            save('currentUser', U);
+            // Sync to server db
+            try {
+              const users = JSON.parse(localStorage.getItem('dw_users')||'[]');
+              const idx = users.findIndex(u => u.name === U.name);
+              if (idx >= 0) { users[idx] = { ...users[idx], stripeConnectId: d.accountId, stripeConnectStatus: 'active' }; wsSend('users', users); }
+            } catch(e) {}
+            showToast('✅ Payout account connected! You can now receive payments.');
+            rerender();
+          } else {
+            U = { ...savedUser, stripeConnectId: d.accountId, stripeConnectStatus: 'pending' };
+            save('currentUser', U);
+            showToast('⚠️ Stripe setup incomplete — please finish onboarding.');
+          }
+        } catch(e) { showToast('⚠️ Could not verify payout status.'); }
+      }, 800);
+    } else {
+      setTimeout(()=>showToast('↩ Payout setup cancelled — you can retry anytime from Settings.'), 500);
+    }
+  }
 })();
 
 async function requestRefund(sessionId, requesterName) {
@@ -2481,6 +2525,58 @@ function showSettingsDropdown(anchorEl) {
   ));
 
   ap(panel, acct);
+
+  // ── PAYOUTS (Stripe Connect) ────────────────────────────────
+  const payoutSec = section('💸 PAYOUTS');
+  const payoutStatus = div(null,{padding:'8px 0'});
+  const connectStatus = U.stripeConnectStatus;
+  if (connectStatus === 'active') {
+    ap(payoutStatus,
+      div(null,{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'},
+        ap(el('span',null,{fontSize:'14px'}),'✅'),
+        ap(el('span',null,{fontSize:'13px',color:'#22c55e',fontWeight:'700'}),'Payouts connected'),
+        ap(el('span',null,{fontSize:'11px',color:'#444'}),' — you can receive payments')
+      )
+    );
+  } else if (connectStatus === 'pending') {
+    ap(payoutStatus,
+      div(null,{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'},
+        ap(el('span',null,{fontSize:'14px'}),'⏳'),
+        ap(el('span',null,{fontSize:'13px',color:'#f59e0b',fontWeight:'700'}),'Setup incomplete'),
+        ap(el('span',null,{fontSize:'11px',color:'#444'}),' — finish Stripe onboarding')
+      )
+    );
+  } else {
+    ap(payoutStatus,
+      div(null,{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'},
+        ap(el('span',null,{fontSize:'14px'}),'💳'),
+        ap(el('span',null,{fontSize:'13px',color:'#888'}),'No payout account set up yet')
+      )
+    );
+  }
+  const _connectBtnLabel = connectStatus === 'active' ? 'Manage Payouts' : 'Set Up Payouts';
+  const _connectBtn = btn(null,{
+    background: connectStatus === 'active' ? 'none' : 'linear-gradient(135deg,#7c3aed,#a78bfa)',
+    border: connectStatus === 'active' ? '1px solid #2a2a2a' : 'none',
+    borderRadius:'8px', color: connectStatus === 'active' ? '#888' : '#fff',
+    fontSize:'12px', cursor:'pointer', padding:'7px 14px',
+    fontFamily:'inherit', width:'auto', fontWeight:'700'
+  }, async () => {
+    _connectBtn.disabled = true;
+    _connectBtn.textContent = '⏳ Loading…';
+    try {
+      const r = await fetch('/connect-onboard', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ username: U.name })
+      });
+      const d = await r.json();
+      if (d.url) { window.location.href = d.url; }
+      else { showToast('❌ ' + (d.error || 'Setup failed')); _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel; }
+    } catch(e) { showToast('❌ ' + e.message); _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel; }
+  }, _connectBtnLabel);
+  ap(payoutStatus, _connectBtn);
+  ap(payoutSec, payoutStatus);
+  ap(panel, payoutSec);
 
   // ── CHAT SETTINGS ───────────────────────────────────────────
   const chat = section('💬 CHAT SETTINGS');
