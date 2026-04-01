@@ -1,4 +1,5 @@
 config.json
-node_modules/
 data.json
 moderation.json
+node_modules/
+*.log
