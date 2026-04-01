@@ -555,10 +555,15 @@ if(url === '/.well-known/assetlinks.json') {
         const { username } = JSON.parse(body);
         if (!username) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'Missing username'})); return; }
 
-        // Find or create Stripe Connect account for this worker
+        // Find or create user record for this worker
         if (!db.users) db.users = [];
-        const user = db.users.find(u => u.name === username);
-        if (!user) { res.writeHead(404, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'User not found'})); return; }
+        let user = db.users.find(u => u.name === username);
+        if (!user) {
+          // User exists in client localStorage but not yet synced to server — create minimal record
+          user = { name: username, id: 'u_' + Date.now() };
+          db.users.push(user);
+          saveDB();
+        }
 
         let accountId = user.stripeConnectId;
         if (!accountId) {
