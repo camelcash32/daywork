@@ -216,6 +216,8 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
       <button class="ni" onclick="go('job')" id="n-job"><span class="ic">📋</span>Jobs<span class="nb yl" id="b-job">0</span></button>
       <button class="ni" onclick="go('usr')" id="n-usr"><span class="ic">👥</span>Users</button>
       <button class="ni" onclick="go('wf')" id="n-wf"><span class="ic">🔤</span>Word Filter</button>
+      <button class="ni" onclick="go('bul')" id="n-bul"><span class="ic">📌</span>Bulletin Board</button>
+      <button class="ni" onclick="go('ref')" id="n-ref"><span class="ic">💸</span>Refunds<span class="nb" id="b-ref"></span></button>
       <div class="nl">SYSTEM</div>
       <button class="ni" onclick="go('err')" id="n-err"><span class="ic">⚠️</span>Errors<span class="nb" id="b-err">0</span></button>
     </nav>
@@ -300,6 +302,52 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
           <div class="ir"><input class="inp" id="WI" placeholder="e.g. scam"/><button class="btn bsr" onclick="addWord()">Add</button></div>
           <div id="WC"></div>
         </div>
+      </div>
+
+      <div class="pg" id="p-ref">
+        <div class="ph"><h2>Refunds</h2><p>Approve to automatically refund via Stripe — no manual work needed</p></div>
+        <div id="REF-list"></div>
+      </div>
+
+      <div class="pg" id="p-bul">
+        <div class="ph"><h2>Bulletin Board</h2><p>Post updates visible to all users on the right sidebar</p></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="ctit" style="margin-bottom:14px">📌 New Post</div>
+          <lbl>CONTENT</lbl>
+          <textarea id="BUL-content" rows="4" class="inp" style="width:100%;resize:vertical;margin-bottom:10px;font-family:inherit;line-height:1.5" placeholder="Write your update here…"></textarea>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+            <div>
+              <lbl>FONT SIZE (px)</lbl>
+              <select id="BUL-size" class="inp">
+                <option value="12">12px — Small</option>
+                <option value="13">13px</option>
+                <option value="14" selected>14px — Normal</option>
+                <option value="16">16px — Medium</option>
+                <option value="18">18px — Large</option>
+                <option value="20">20px</option>
+                <option value="24">24px — XL</option>
+                <option value="28">28px — XXL</option>
+              </select>
+            </div>
+            <div>
+              <lbl>TEXT COLOR</lbl>
+              <input type="color" id="BUL-color" value="#e8e6f0" style="width:100%;height:38px;border-radius:8px;border:1px solid #252535;background:#12121a;cursor:pointer;padding:3px"/>
+            </div>
+            <div>
+              <lbl>PIN TO TOP</lbl>
+              <div class="sw" style="margin-top:8px"><div class="swt" id="BUL-pin-sw" onclick="toggleBulPin()"><div class="swth"></div></div><span style="font-size:13px" id="BUL-pin-lbl">No</span></div>
+            </div>
+          </div>
+          <lbl>IMAGE (optional — click to upload)</lbl>
+          <div id="BUL-img-preview" onclick="document.getElementById('BUL-img-in').click()" style="width:100%;height:80px;background:#0d0d12;border:1px dashed #252535;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;margin-bottom:10px;overflow:hidden;font-size:13px;color:#444">Click to upload image</div>
+          <input type="file" id="BUL-img-in" accept="image/*" style="display:none" onchange="bulLoadImage(this)"/>
+          <div style="display:flex;gap:8px">
+            <button class="btn bsr" onclick="postBulletin()">📌 Post Update</button>
+            <button class="btn bgr" onclick="clearBulImage()">🗑 Clear Image</button>
+          </div>
+        </div>
+        <lbl>CURRENT POSTS</lbl>
+        <div id="BUL-list" style="margin-top:8px"></div>
       </div>
 
       <div class="pg" id="p-err">
@@ -417,8 +465,8 @@ function connectWS(){
   };
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
-    if(m.type==='init'){ if(m.db)db=m.db; if(m.mod)applyMod(m.mod); rAll(); }
-    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; rAll(); }
+    if(m.type==='init'){ if(m.db)db=m.db; if(m.db&&m.db.bulletin)renderBulletin(m.db.bulletin); if(m.mod)applyMod(m.mod); rAll(); }
+    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='bulletin')renderBulletin(m.val); rAll(); }
     if(m.type==='modUpdate') applyMod(m.mod);
     if(m.type==='fullMod'){ mod={...mod,...m.mod}; if(m.mod.errors)fErr=m.mod.errors; if(m.mod.modLog)fLog=m.mod.modLog; rAll(); }
     if(m.type==='modLog'){ fLog=m.log||[]; fErr=m.errors||[]; rAll(); }
@@ -445,6 +493,8 @@ function go(pg){
   document.getElementById('n-'+pg).classList.add('on');
   if(pg==='log') renderLog();
   if(pg==='err') renderErrors();
+  if(pg==='bul') fetch('/bulletin').then(r=>r.json()).then(posts=>renderBulletin(posts)).catch(()=>{});
+  if(pg==='ref') loadRefunds();
 }
 
 function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderRecentLog(); updBadges(); updSw(); }
@@ -558,6 +608,142 @@ function lRow(l){
 function st(id,val){ const e=document.getElementById(id); if(e)e.textContent=val; }
 function emp(ico,txt){ return `<div class="emp"><div class="emp-i">${ico}</div><div style="font-size:13px">${txt}</div></div>`; }
 function toast(msg,type){ const t=document.getElementById('T'); t.textContent=msg; t.className='toast'+(type?' '+type:''); void t.offsetWidth; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+
+// ── BULLETIN BOARD ─────────────────────────────────────────────
+const BULLETIN_TOKEN='dw-bulletin-admin-2024';
+let _bulPinned=false;
+let _bulImage=null;
+
+function toggleBulPin(){
+  _bulPinned=!_bulPinned;
+  const sw=document.getElementById('BUL-pin-sw');
+  const lbl=document.getElementById('BUL-pin-lbl');
+  if(sw) sw.classList.toggle('on',_bulPinned);
+  if(lbl) lbl.textContent=_bulPinned?'Yes':'No';
+}
+
+function bulLoadImage(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    _bulImage=e.target.result;
+    const preview=document.getElementById('BUL-img-preview');
+    if(preview){ preview.innerHTML=''; preview.style.height='120px'; const img=document.createElement('img'); img.src=_bulImage; img.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:6px'; preview.appendChild(img); }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearBulImage(){
+  _bulImage=null;
+  const preview=document.getElementById('BUL-img-preview');
+  if(preview){ preview.innerHTML='Click to upload image'; preview.style.height='80px'; }
+  const input=document.getElementById('BUL-img-in');
+  if(input) input.value='';
+}
+
+async function postBulletin(){
+  const content=(document.getElementById('BUL-content').value||'').trim();
+  if(!content){ toast('Content required','r'); return; }
+  const fontSize=document.getElementById('BUL-size').value||'14';
+  const color=document.getElementById('BUL-color').value||'#e8e6f0';
+  try{
+    const res=await fetch('/bulletin',{method:'POST',headers:{'Content-Type':'application/json','x-admin-token':BULLETIN_TOKEN},body:JSON.stringify({content,fontSize,color,image:_bulImage||null,pinned:_bulPinned})});
+    const data=await res.json();
+    if(data.ok){
+      toast('📌 Post published!','g');
+      document.getElementById('BUL-content').value='';
+      _bulPinned=false; _bulImage=null;
+      const sw=document.getElementById('BUL-pin-sw'); if(sw) sw.classList.remove('on');
+      const lbl=document.getElementById('BUL-pin-lbl'); if(lbl) lbl.textContent='No';
+      clearBulImage();
+    } else { toast('Error: '+(data.error||'Failed'),'r'); }
+  }catch(e){ toast('Network error','r'); }
+}
+
+async function deleteBulletin(id){
+  if(!confirm('Delete this post?')) return;
+  try{
+    const res=await fetch('/bulletin/'+id,{method:'DELETE',headers:{'x-admin-token':BULLETIN_TOKEN}});
+    const data=await res.json();
+    if(data.ok){ toast('🗑 Post deleted','g'); }
+    else { toast('Error deleting post','r'); }
+  }catch(e){ toast('Network error','r'); }
+}
+
+function renderBulletin(posts){
+  const el=document.getElementById('BUL-list'); if(!el) return;
+  if(!posts||!posts.length){ el.innerHTML=emp('📭','No posts yet'); return; }
+  el.innerHTML='';
+  [...posts].forEach(p=>{
+    const d=document.createElement('div'); d.className='card';
+    const date=new Date(p.date).toLocaleString();
+    const imgHtml=p.image?`<img src="${p.image}" style="width:100%;max-height:120px;object-fit:cover;border-radius:6px;margin-bottom:8px;display:block"/>`:'' ;
+    d.innerHTML=`<div class="ct"><div>${p.pinned?'<span class="tag ty" style="margin-right:6px">📌 PINNED</span>':''}<span style="font-size:${p.fontSize||14}px;color:${p.color||'#e8e6f0'};font-weight:600">${p.content.slice(0,60)}${p.content.length>60?'…':''}</span><div class="cm">Font: ${p.fontSize||14}px · ${date}</div></div><button class="btn br" style="flex-shrink:0" onclick="deleteBulletin(${p.id})">🗑 Delete</button></div>${imgHtml?`<div style="margin-top:8px">${imgHtml}</div>`:''}`;
+    el.appendChild(d);
+  });
+}
+
+// Load bulletin posts on page load
+fetch('/bulletin').then(r=>r.json()).then(posts=>renderBulletin(posts)).catch(()=>{});
+
+// ── REFUNDS ────────────────────────────────────────────────────
+async function loadRefunds(){
+  try{
+    const res=await fetch('/refund-requests',{headers:{'x-admin-token':BULLETIN_TOKEN}});
+    const requests=await res.json();
+    renderRefunds(requests);
+    const pending=requests.filter(r=>r.status==='pending').length;
+    const badge=document.getElementById('b-ref');
+    if(badge) badge.textContent=pending||'';
+  }catch(e){ console.error('Refunds load failed',e); }
+}
+
+function renderRefunds(requests){
+  const el=document.getElementById('REF-list'); if(!el) return;
+  if(!requests||!requests.length){ el.innerHTML=emp('💸','No refund requests yet'); return; }
+  el.innerHTML=''; requests.forEach(r=>{
+    const d=document.createElement('div'); d.className='card';
+    const sc=r.status==='pending'?'tr':r.status==='refunded'?'tg':'tgr';
+    const label=r.status==='pending'?'PENDING':r.status==='refunded'?'✓ REFUNDED':'DENIED';
+    const date=new Date(r.date).toLocaleString();
+    const total=r.payment?('$'+r.payment.total.toFixed(2)):'?';
+    d.innerHTML=`
+      <div class="ct">
+        <div>
+          <div class="ctit">${r.payment?.jobTitle||'Unknown Job'} <span style="font-size:12px;color:var(--muted)">— ${total}</span></div>
+          <div class="cm">Requested by ${r.requesterName||'?'} · Worker: ${r.payment?.workerName||'?'} · ${date}</div>
+          <div class="cb" style="margin-top:8px">${r.reason||'No reason given'}</div>
+        </div>
+        <span class="tag ${sc}">${label}</span>
+      </div>
+      ${r.status==='pending'?`
+      <div class="ca" style="margin-top:10px">
+        <button class="btn bg" onclick="processRefund(${r.id},'approve')">✓ Approve & Refund via Stripe</button>
+        <button class="btn br" onclick="processRefund(${r.id},'deny')">✕ Deny</button>
+      </div>`:''}
+      ${r.stripeRefundId?`<div style="font-size:11px;color:var(--muted);margin-top:6px">Stripe Refund ID: ${r.stripeRefundId}</div>`:''}
+    `;
+    el.appendChild(d);
+  });
+}
+
+async function processRefund(refundId, action){
+  if(action==='approve'&&!confirm('Approve this refund? Stripe will process it automatically and the money will be returned to the hirer\'s card.')) return;
+  if(action==='deny'&&!confirm('Deny this refund request?')) return;
+  try{
+    const res=await fetch('/process-refund',{method:'POST',headers:{'Content-Type':'application/json','x-admin-token':BULLETIN_TOKEN},body:JSON.stringify({refundId,action})});
+    const data=await res.json();
+    if(data.ok){
+      toast(action==='approve'?'✅ Refund processed via Stripe!':'✕ Refund denied','g');
+      loadRefunds();
+    } else {
+      toast('❌ '+(data.error||'Failed'),'r');
+    }
+  }catch(e){ toast('Network error','r'); }
+}
+
+// Load refund badge on init
+loadRefunds();
 </script>
 </body>
 </html>
