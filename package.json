@@ -1,0 +1,13 @@
+{
+  "name": "daywork-server",
+  "version": "1.0.0",
+  "description": "DAYWORK real-time job marketplace server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "stripe": "^14.0.0"
+  }
+}
