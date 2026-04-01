@@ -1139,11 +1139,16 @@ function renderApplicants(){
       const row=div(null,{background:"#111",borderRadius:"10px",padding:"14px",display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"},
         div(null,{flex:"1",minWidth:"120px"},pp(null,{fontWeight:"600",fontSize:"15px",marginBottom:"4px"},app.name),rBadge(app.name))
       );
-      const hB=btn("btn btn-g",{width:"auto",padding:"8px 18px",fontSize:"13px"},()=>{
-        jobs=jobs.map(j=>{if(j.id!==job.id)return j;
-          return {...j,applicants:j.applicants.map(a=>a.type==="solo"&&a.name===app.name?{...a,status:"accepted"}:a),
-            filled:j.filled+1,completedPairs:[...j.completedPairs,{type:"solo",workerName:app.name,poster:j.postedBy,workerRated:false,posterRated:false,done:false}]};
-        });save("jobs",jobs);showToast("✓ "+app.name+" hired!");rerender();
+      const hB=btn("btn btn-g",{width:"auto",padding:"8px 18px",fontSize:"13px"},async()=>{
+        if(!job.payAmount){showToast("⚠️ This job has no pay amount set.");return;}
+        hB.disabled=true; hB.textContent="⏳ Loading…";
+        try {
+          const r=await fetch('/create-escrow',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({jobId:job.id,jobTitle:job.title,workerName:app.name,hirerId:U.name,amount:job.payAmount})});
+          const d=await r.json();
+          if(d.url){showToast("⏳ Opening secure payment…");window.location.href=d.url;}
+          else{showToast("❌ "+(d.error||"Payment error."));hB.disabled=false;hB.textContent="✓ Hire";}
+        }catch(e){showToast("❌ "+e.message);hB.disabled=false;hB.textContent="✓ Hire";}
       },"✓ Hire");
       const pB=btn("btn btn-d",{width:"auto",padding:"8px 18px",fontSize:"13px"},()=>{
         jobs=jobs.map(j=>j.id!==job.id?j:{...j,applicants:j.applicants.map(a=>a.type==="solo"&&a.name===app.name?{...a,status:"passed"}:a)});
@@ -1168,8 +1173,16 @@ function renderApplicants(){
             ap(el("p",null,{fontSize:"11px",color:"#22c55e"}),"✓ Hired — job in progress")
           )
         ),
-        btn("btn btn-g",{width:"auto",padding:"8px 16px",fontSize:"13px"},()=>{
-          if(!confirm("Mark job as done for "+app.name+"? This will prompt both of you to leave a review.")) return;
+        btn("btn btn-g",{width:"auto",padding:"8px 16px",fontSize:"13px"},async(e)=>{
+          if(!confirm("Mark job as done for "+app.name+"? Payment will be released to them now.")) return;
+          const doneBtn=e.target; doneBtn.disabled=true; doneBtn.textContent="⏳ Releasing payment…";
+          try {
+            const r=await fetch('/release-payment',{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({jobId:job.id,workerName:app.name})});
+            const d=await r.json();
+            if(!d.ok && d.error){showToast("⚠️ "+d.error+" — marking done anyway.");}
+            else {showToast("💸 Payment released to "+app.name+"!");}
+          } catch(e2){showToast("⚠️ Could not release payment — marking done anyway.");}
           jobs=jobs.map(j=>j.id!==job.id?j:{...j,
             completedPairs:j.completedPairs.map(p=>
               p.workerName===app.name&&p.poster===j.postedBy&&!p.done?{...p,done:true,doneAt:Date.now()}:p
@@ -1195,9 +1208,7 @@ function renderApplicants(){
           btn(null,{background:"none",border:"1px solid rgba(232,197,71,.3)",borderRadius:"7px",color:"#e8c547",fontSize:"12px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto"},
             ()=>showChatModal(job.id,job.title,app.name,U.name),(hasChatUnread(job.id,app.name,U.name)?"💬 Chat 🔴":"💬 Chat")
           ),
-          job.payAmount?btn(null,{background:"rgba(123,92,255,.15)",border:"1px solid rgba(123,92,255,.4)",borderRadius:"7px",color:"#a78bfa",fontSize:"12px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto"},
-            ()=>stripePayWorker(job,app.name),"💳 Pay $"+job.payAmount
-          ):el("span"),
+          sp(null,{fontSize:"11px",color:"#22c55e",fontWeight:"600",padding:"5px 4px"},"💳 Payment held"),
           btn(null,{background:"none",border:"1px solid rgba(239,68,68,.3)",borderRadius:"7px",color:"#ef4444",fontSize:"12px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto"},
             ()=>{
               if(!confirm("Cancel "+app.name+"? The slot will reopen.")) return;
@@ -2290,6 +2301,37 @@ wsConnect();
   } else if (payment === 'cancelled') {
     history.replaceState(null,'','/index.html');
     setTimeout(()=>showToast('↩ Payment cancelled.'),500);
+  }
+  // ── Escrow return (hirer accepted a worker via Stripe) ────────
+  const escrow = params.get('escrow');
+  const escrowSession = params.get('session_id') || sessionId;
+  const escrowJobId = params.get('job_id');
+  const escrowWorker = params.get('worker');
+  if (escrow === 'success' && escrowSession && escrowJobId && escrowWorker) {
+    history.replaceState(null,'','/index.html');
+    // Confirm escrow with server (marks payment as authorized)
+    fetch('/confirm-payment?session_id='+escrowSession).catch(()=>{});
+    // Complete the hire in job data
+    setTimeout(()=>{
+      const jid = isNaN(escrowJobId) ? escrowJobId : Number(escrowJobId);
+      jobs = jobs.map(j => {
+        if(String(j.id) !== String(jid)) return j;
+        const alreadyHired = j.applicants.some(a=>a.name===escrowWorker&&a.status==='accepted');
+        if(alreadyHired) return j;
+        return {
+          ...j,
+          applicants: j.applicants.map(a=>a.type==='solo'&&a.name===escrowWorker?{...a,status:'accepted'}:a),
+          filled: j.filled+1,
+          completedPairs: [...j.completedPairs, {type:'solo',workerName:escrowWorker,poster:j.postedBy,workerRated:false,posterRated:false,done:false}]
+        };
+      });
+      save('jobs', jobs);
+      showToast('✅ Payment held! '+escrowWorker+' is now hired. Funds release when you mark the job done.');
+      tab='applicants'; mode='poster'; rerender();
+    }, 600);
+  } else if (escrow === 'cancelled') {
+    history.replaceState(null,'','/index.html');
+    setTimeout(()=>showToast('↩ Hire cancelled — no charge made.'),500);
   }
   // ── Stripe Connect return ──────────────────────────────────
   const connect = params.get('connect');
