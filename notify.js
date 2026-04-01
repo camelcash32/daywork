@@ -4,11 +4,15 @@ const path = require('path');
 const https = require('https');
 
 function loadConfig() {
+  let cfg = {};
   try {
     const configPath = path.join(__dirname, 'config.json');
-    if (fs.existsSync(configPath)) return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (fs.existsSync(configPath)) cfg = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   } catch(e) {}
-  return {};
+  return {
+    resend_api_key: process.env.RESEND_API_KEY || cfg.resend_api_key || '',
+    email_from:     process.env.EMAIL_FROM     || cfg.email_from     || 'DAYWORK <noreply@godaywork.com>',
+  };
 }
 
 // ── Send email via Resend API ─────────────────────────────────

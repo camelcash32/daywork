@@ -3,6 +3,19 @@ let notify;
 try { notify = require('./notify'); } catch(e) { notify = null; console.log('[INFO] notify.js not loaded:', e.message); }
 const fs = require('fs');
 const path = require('path');
+
+// ── Config: env vars take priority over config.json ───────────
+function getCfg() {
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+  return {
+    stripe_secret_key:    process.env.STRIPE_SECRET_KEY    || cfg.stripe_secret_key    || '',
+    bulletin_token:       process.env.BULLETIN_TOKEN       || cfg.bulletin_token       || 'dw-bulletin-admin-2024',
+    app_url:              process.env.APP_URL               || cfg.app_url               || 'http://localhost:3000',
+    resend_api_key:       process.env.RESEND_API_KEY       || cfg.resend_api_key       || '',
+    email_from:           process.env.EMAIL_FROM           || cfg.email_from           || 'DAYWORK <noreply@godaywork.com>',
+  };
+}
 const WebSocket = require('ws');
 
 const DATA_FILE = path.join(__dirname, 'data.json');
@@ -11,7 +24,7 @@ const MOD_FILE  = path.join(__dirname, 'moderation.json');
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
   try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
-  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[] };
+  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], payments:[], refundRequests:[] };
 }
 function loadMod() {
   try { if (fs.existsSync(MOD_FILE)) return JSON.parse(fs.readFileSync(MOD_FILE,'utf8')); } catch(e){}
@@ -32,6 +45,20 @@ function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2
 let db  = loadDB();
 let mod = loadMod();
 let dirty = false;
+
+// ── Seed demo jobs if empty ───────────────────────────────────
+if (!db.jobs || !db.jobs.length) {
+  const exp = Date.now() + 7*24*60*60*1000; // 7-day demo expiry
+  db.jobs = [
+    {id:Date.now()+1,title:"Help Moving Furniture",category:"Moving",pay:"$80 flat",payAmount:"80",duration:"3-4 hrs",zip:"90001",location:"Los Angeles, CA",date:"Today, 10AM",slots:2,filled:0,postedBy:"DemoHirer",applicants:[],completedPairs:[],priority:false,urgent:false,description:"Need 2 people to help move boxes and furniture from a 2BR apartment to a moving truck.",expiresAt:exp,postedAt:Date.now()},
+    {id:Date.now()+2,title:"Lawn Mowing & Yard Cleanup",category:"Landscaping",pay:"$50 flat",payAmount:"50",duration:"2 hrs",zip:"77001",location:"Houston, TX",date:"Today, 9AM",slots:1,filled:0,postedBy:"DemoHirer",applicants:[],completedPairs:[],priority:false,urgent:false,description:"Standard lawn mowing, edging, and leaf blowout for a residential property. Equipment provided.",expiresAt:exp,postedAt:Date.now()},
+    {id:Date.now()+3,title:"Office Deep Clean",category:"Cleaning",pay:"$100 flat",payAmount:"100",duration:"4 hrs",zip:"10001",location:"New York, NY",date:"Tomorrow, 8AM",slots:3,filled:0,postedBy:"DemoHirer",applicants:[],completedPairs:[],priority:true,urgent:true,description:"Deep clean of a small office space. All supplies provided. Must be available before 8AM.",expiresAt:exp,postedAt:Date.now()},
+    {id:Date.now()+4,title:"Package Delivery Route",category:"Delivery",pay:"$120/day",payAmount:"120",duration:"6-8 hrs",zip:"60601",location:"Chicago, IL",date:"Today, 7AM",slots:1,filled:0,postedBy:"DemoHirer",applicants:[],completedPairs:[],priority:false,urgent:true,description:"Drive our van on a preset delivery route. Valid license required. No heavy lifting over 30 lbs.",expiresAt:exp,postedAt:Date.now()},
+    {id:Date.now()+5,title:"Drywall Patching & Paint Touch-Up",category:"Construction",pay:"$150 flat",payAmount:"150",duration:"5-6 hrs",zip:"85001",location:"Phoenix, AZ",date:"Tomorrow, 9AM",slots:2,filled:0,postedBy:"DemoHirer",applicants:[],completedPairs:[],priority:false,urgent:false,description:"Patch and paint several walls in a rental unit after tenant move-out. Paint and supplies included.",expiresAt:exp,postedAt:Date.now()}
+  ];
+  saveDB();
+  console.log('[DEMO] Seeded 5 demo jobs');
+}
 setInterval(()=>{ if(dirty){ saveDB(); dirty=false; } }, 3000);
 
 // ── Moderation helpers ────────────────────────────────────────
@@ -171,6 +198,14 @@ if(url === '/.well-known/assetlinks.json') {
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
       res.end(fs.readFileSync(path.join(__dirname,'privacy.html')));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  if(url === '/terms' || url === '/terms.html') {
+    try {
+      res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'terms.html')));
     } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
     return;
   }
@@ -343,6 +378,237 @@ if(url === '/.well-known/assetlinks.json') {
     res.end(); return;
   }
 
+  // ── CONFIRM PAYMENT (called by client on success redirect) ───
+  if (url.startsWith('/confirm-payment') && req.method === 'GET') {
+    const qs = require('url').parse(req.url, true).query;
+    const sessionId = qs.session_id;
+    if (!sessionId) { res.writeHead(400); res.end('Missing session_id'); return; }
+    try {
+      const cfg = getCfg();
+      const stripe = require('stripe')(cfg.stripe_secret_key);
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const payment = (db.payments||[]).find(p=>p.sessionId===sessionId);
+      if (payment) {
+        payment.status = session.payment_status === 'paid' ? 'paid' : payment.status;
+        payment.paymentIntentId = session.payment_intent || null;
+        saveDB();
+      }
+      res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ ok:true, status: payment?.status||'unknown' }));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // ── REFUND REQUEST (submitted by user) ───────────────────────
+  if (url === '/refund-request' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { sessionId, requesterName, reason } = JSON.parse(body);
+        if (!sessionId || !reason) { res.writeHead(400); res.end('Missing fields'); return; }
+        const payment = (db.payments||[]).find(p=>p.sessionId===sessionId);
+        if (!payment) { res.writeHead(404); res.end('Payment not found'); return; }
+        if (!db.refundRequests) db.refundRequests = [];
+        const existing = db.refundRequests.find(r=>r.sessionId===sessionId&&r.status==='pending');
+        if (existing) { res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({ok:true,alreadySubmitted:true})); return; }
+        db.refundRequests.unshift({ id:Date.now(), sessionId, requesterName, reason, payment, status:'pending', date:new Date().toISOString() });
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok:true }));
+      } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    });
+    return;
+  }
+
+  // ── GET REFUND REQUESTS (admin) ───────────────────────────────
+  if (url === '/refund-requests' && req.method === 'GET') {
+    let cfg = {};
+    try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+    const token = req.headers['x-admin-token'];
+    if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(db.refundRequests||[]));
+    return;
+  }
+
+  // ── PROCESS REFUND (admin approves) ──────────────────────────
+  if (url === '/process-refund' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+        const token = req.headers['x-admin-token'];
+        if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
+        const { refundId, action } = JSON.parse(body); // action: 'approve' | 'deny'
+        const refReq = (db.refundRequests||[]).find(r=>r.id===refundId);
+        if (!refReq) { res.writeHead(404); res.end('Refund request not found'); return; }
+        if (action === 'deny') {
+          refReq.status = 'denied';
+          saveDB();
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:true, status:'denied' }));
+          return;
+        }
+        // Approve: get payment intent and issue Stripe refund
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        let paymentIntentId = refReq.payment?.paymentIntentId;
+        if (!paymentIntentId) {
+          // Retrieve from Stripe session
+          const session = await stripe.checkout.sessions.retrieve(refReq.sessionId);
+          paymentIntentId = session.payment_intent;
+        }
+        if (!paymentIntentId) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'No payment intent found — payment may not have completed.'})); return; }
+        const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+        refReq.status = 'refunded';
+        refReq.stripeRefundId = refund.id;
+        refReq.refundedAt = new Date().toISOString();
+        // Update payment record
+        const payment = (db.payments||[]).find(p=>p.sessionId===refReq.sessionId);
+        if (payment) { payment.status = 'refunded'; payment.stripeRefundId = refund.id; }
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok:true, status:'refunded', refundId: refund.id }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ── BULLETIN BOARD ──────────────────────────────────────────
+  // GET /bulletin → return all posts
+  if (url === '/bulletin' && req.method === 'GET') {
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(db.bulletin || []));
+    return;
+  }
+
+  // POST /bulletin → add a post (requires admin token)
+  if (url === '/bulletin' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+        const token = req.headers['x-admin-token'];
+        if (cfg.bulletin_token && token !== cfg.bulletin_token) {
+          res.writeHead(401); res.end('Unauthorized'); return;
+        }
+        const { content, fontSize, color, image, pinned } = JSON.parse(body);
+        if (!content) { res.writeHead(400); res.end('Content required'); return; }
+        if (!db.bulletin) db.bulletin = [];
+        const post = { id: Date.now(), content, fontSize: fontSize||'14', color: color||'#e8e6f0', image: image||null, pinned: !!pinned, date: new Date().toISOString() };
+        if (pinned) db.bulletin.unshift(post); else db.bulletin.push(post);
+        saveDB();
+        broadcast({ type:'update', key:'bulletin', val:db.bulletin });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok:true, post }));
+      } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    });
+    return;
+  }
+
+  // DELETE /bulletin/:id → remove a post
+  if (url.startsWith('/bulletin/') && req.method === 'DELETE') {
+    try {
+      const cfg = getCfg();
+      const token = req.headers['x-admin-token'];
+      if (cfg.bulletin_token && token !== cfg.bulletin_token) {
+        res.writeHead(401); res.end('Unauthorized'); return;
+      }
+      const postId = parseInt(url.split('/')[2]);
+      db.bulletin = (db.bulletin||[]).filter(p => p.id !== postId);
+      saveDB();
+      broadcast({ type:'update', key:'bulletin', val:db.bulletin });
+      res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ ok:true }));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  // ── STRIPE PAYMENT ──────────────────────────────────────────
+  // POST /create-payment → create Stripe Checkout Session
+  if (url === '/create-payment' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured. Add your stripe_secret_key to config.json.' }));
+          return;
+        }
+        let stripe;
+        try { stripe = require('stripe')(cfg.stripe_secret_key); } catch(e) {
+          res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe package not installed. Run: npm install' }));
+          return;
+        }
+        const { amount, tip, jobTitle, workerName, hirerId } = JSON.parse(body);
+        const workerAmountCents = Math.round(parseFloat(amount) * 100);
+        if (!workerAmountCents || workerAmountCents < 50) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({error:'Amount must be at least $0.50'})); return;
+        }
+        const PLATFORM_FEE = 0.07; // 7% platform fee
+        const feeCents = Math.round(workerAmountCents * PLATFORM_FEE);
+        const tipCents = tip ? Math.round(parseFloat(tip) * 100) : 0;
+        const appUrl = cfg.app_url || 'http://localhost:3000';
+        const lineItems = [
+          { price_data: { currency:'usd', product_data:{ name: jobTitle||'DAYWORK Job', description:'Worker: '+workerName }, unit_amount: workerAmountCents }, quantity:1 },
+          { price_data: { currency:'usd', product_data:{ name: 'DAYWORK Platform Fee (7%)', description:'Service fee' }, unit_amount: feeCents }, quantity:1 }
+        ];
+        if (tipCents >= 50) {
+          lineItems.push({ price_data: { currency:'usd', product_data:{ name: 'Tip for '+workerName, description:'100% goes to the worker' }, unit_amount: tipCents }, quantity:1 });
+        }
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: lineItems,
+          mode: 'payment',
+          success_url: appUrl+'/index.html?payment=success&session_id={CHECKOUT_SESSION_ID}',
+          cancel_url: appUrl+'/index.html?payment=cancelled',
+          metadata: { jobTitle, workerName, hirerId }
+        });
+        // Store payment record
+        if (!db.payments) db.payments = [];
+        db.payments.unshift({
+          sessionId: session.id,
+          jobTitle, workerName, hirerId,
+          amount: workerAmountCents/100,
+          tip: tipCents/100,
+          fee: feeCents/100,
+          total: (workerAmountCents+feeCents+tipCents)/100,
+          status: 'pending',
+          date: new Date().toISOString()
+        });
+        if (db.payments.length > 1000) db.payments = db.payments.slice(0,1000);
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ url: session.url }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // OPTIONS for bulletin and payment
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,DELETE','Access-Control-Allow-Headers':'Content-Type,x-admin-token'});
+    res.end(); return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 
@@ -368,6 +634,7 @@ wss.on('connection', (ws, req) => {
   // Send full state
   // Ensure users are included in init
     if(!db.users) db.users = [];
+    if(!db.bulletin) db.bulletin = [];
     ws.send(JSON.stringify({ type:'init', db, mod: safeModData() }));
 
   ws.on('message', (raw) => {
