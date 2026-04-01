@@ -2605,37 +2605,90 @@ function showSettingsDropdown(anchorEl) {
     borderRadius:'8px', color: connectStatus === 'active' ? '#888' : '#fff',
     fontSize:'12px', cursor:'pointer', padding:'7px 14px',
     fontFamily:'inherit', width:'auto', fontWeight:'700'
-  }, () => {
-    // Show pre-redirect explanation popup
-    const overlay = div(null,{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,.7)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'});
-    const modal = div(null,{background:'#12121a',border:'1px solid #2a2a2a',borderRadius:'16px',padding:'28px 24px',maxWidth:'380px',width:'100%',textAlign:'center'});
-    ap(modal,
-      pp(null,{fontSize:'36px',marginBottom:'12px'},'🏦'),
-      ap(el('h3',null,{fontSize:'18px',fontWeight:'900',marginBottom:'10px',color:'#f0ede8'}),'Connect Your Bank Account'),
-      pp(null,{fontSize:'13px',color:'#888',lineHeight:'1.6',marginBottom:'16px'},'To receive payments from hirers, you need to connect your bank account. This is handled securely by ',ap(el('strong',null,{color:'#a78bfa'}),'Stripe'),' — the same payment processor used by Uber, Lyft, and DoorDash.'),
-      div(null,{background:'rgba(124,58,237,.08)',border:'1px solid rgba(124,58,237,.2)',borderRadius:'10px',padding:'12px 14px',marginBottom:'20px',textAlign:'left'},
-        ap(el('p',null,{fontSize:'12px',color:'#a78bfa',fontWeight:'700',marginBottom:'8px'}),'✅ What to expect:'),
-        ap(el('p',null,{fontSize:'12px',color:'#888',lineHeight:'1.7'}),
-          '• Takes about 2–3 minutes\n• You only do this once\n• Your bank info is encrypted and secure\n• You\'ll be brought right back to DAYWORK when done'
-        )
-      ),
-      div(null,{display:'flex',flexDirection:'column',gap:'8px'},
-        btn('btn',{background:'linear-gradient(135deg,#7c3aed,#a78bfa)',color:'#fff',borderRadius:'10px',padding:'12px',fontWeight:'700',fontSize:'14px',border:'none'}, async ()=>{
-          overlay.remove();
-          _connectBtn.disabled = true; _connectBtn.textContent = '⏳ Loading…';
-          try {
-            const r = await fetch('/connect-onboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:U.name})});
-            const d = await r.json();
-            if(d.url){window.location.href=d.url;}
-            else{showToast('❌ '+(d.error||'Setup failed'));_connectBtn.disabled=false;_connectBtn.textContent=_connectBtnLabel;}
-          } catch(e){showToast('❌ '+e.message);_connectBtn.disabled=false;_connectBtn.textContent=_connectBtnLabel;}
-        },'Continue to Stripe →'),
-        btn('btn',{background:'none',border:'1px solid #2a2a2a',color:'#555',borderRadius:'10px',padding:'10px',fontSize:'13px'},()=>overlay.remove(),'Not now')
-      )
+  }, async () => {
+    _connectBtn.disabled = true; _connectBtn.textContent = '⏳ Loading…';
+
+    // Build full-screen overlay
+    const overlay = div(null,{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,.85)',zIndex:'9999',display:'flex',flexDirection:'column'});
+    const topBar = div(null,{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1a1a1a',background:'#0f0f0f',flexShrink:'0'});
+    ap(topBar,
+      ap(el('span',null,{fontSize:'15px',fontWeight:'900',color:'#e8c547'}),'⚡ DAYWORK — Payout Setup'),
+      btn(null,{background:'none',border:'1px solid #2a2a2a',color:'#888',borderRadius:'8px',padding:'6px 14px',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',width:'auto',fontWeight:'700'}, ()=>{
+        overlay.remove();
+        _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel;
+      }, '✕ Close')
     );
-    ap(overlay, modal);
-    overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
+    const mountPoint = div(null,{flex:'1',overflowY:'auto',padding:'24px',display:'flex',justifyContent:'center'});
+    const inner = div(null,{width:'100%',maxWidth:'680px'});
+    ap(mountPoint, inner);
+    ap(overlay, topBar, mountPoint);
     document.body.appendChild(overlay);
+
+    try {
+      // Load Stripe Connect JS if not already loaded
+      if (!window.StripeConnect) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://connect-js.stripe.com/v1/connect.js';
+          s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+
+      // Fetch publishable key
+      const cfgRes = await fetch('/stripe-config');
+      const cfgData = await cfgRes.json();
+      if (!cfgData.publishableKey) throw new Error('Stripe config unavailable');
+
+      // Initialize Stripe Connect with fetchClientSecret
+      const stripeConnectInstance = StripeConnect.initialize({
+        publishableKey: cfgData.publishableKey,
+        fetchClientSecret: async () => {
+          const r = await fetch('/create-account-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:U.name})});
+          const d = await r.json();
+          if (!d.clientSecret) throw new Error(d.error || 'Session error');
+          return d.clientSecret;
+        },
+        appearance: {
+          overlays: 'drawer',
+          variables: {
+            colorBackground: '#12121a',
+            colorText: '#f0ede8',
+            colorDanger: '#ef4444',
+            fontFamily: "'Segoe UI', Arial, sans-serif",
+            spacingUnit: '4px',
+            borderRadius: '8px',
+          }
+        }
+      });
+
+      // Create and mount the account-onboarding component
+      const onboardingComp = stripeConnectInstance.create('account-onboarding');
+      onboardingComp.setOnExit(async () => {
+        overlay.remove();
+        _connectBtn.disabled = false;
+        // Re-check connect status and refresh UI
+        try {
+          const sr = await fetch('/connect-status?username='+encodeURIComponent(U.name));
+          const sd = await sr.json();
+          if (sd.status === 'active') {
+            U.stripeConnectId = sd.accountId || U.stripeConnectId;
+            localStorage.setItem('dw_user', JSON.stringify(U));
+            showToast('✅ Payout account connected!');
+          } else {
+            showToast('⚠️ Setup incomplete — finish anytime in Settings');
+          }
+        } catch(_){}
+        _connectBtn.textContent = _connectBtnLabel;
+        renderSettings(); // Refresh settings panel
+      });
+      inner.appendChild(onboardingComp);
+
+    } catch(e) {
+      overlay.remove();
+      _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel;
+      showToast('❌ ' + (e.message || 'Failed to load payout setup'));
+    }
   }, _connectBtnLabel);
   ap(payoutStatus, _connectBtn);
   ap(payoutSec, payoutStatus);
