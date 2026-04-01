@@ -383,7 +383,7 @@ if(url === '/.well-known/assetlinks.json') {
     const qs = require('url').parse(req.url, true).query;
     const sessionId = qs.session_id;
     if (!sessionId) { res.writeHead(400); res.end('Missing session_id'); return; }
-    try {
+    (async () => { try {
       const cfg = getCfg();
       const stripe = require('stripe')(cfg.stripe_secret_key);
       const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -398,7 +398,7 @@ if(url === '/.well-known/assetlinks.json') {
     } catch(e) {
       res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
       res.end(JSON.stringify({ error: e.message }));
-    }
+    }})();
     return;
   }
 
