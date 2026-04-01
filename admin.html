@@ -493,6 +493,8 @@ function go(pg){
   document.getElementById('n-'+pg).classList.add('on');
   if(pg==='log') renderLog();
   if(pg==='err') renderErrors();
+  if(pg==='job') renderJobs();
+  if(pg==='usr') renderUsers();
   if(pg==='bul') fetch('/bulletin').then(r=>r.json()).then(posts=>renderBulletin(posts)).catch(()=>{});
   if(pg==='ref') loadRefunds();
 }
