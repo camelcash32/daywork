@@ -2630,14 +2630,19 @@ function showSettingsDropdown(anchorEl) {
         await new Promise((resolve, reject) => {
           const s = document.createElement('script');
           s.src = 'https://connect-js.stripe.com/v1/connect.js';
-          s.onload = resolve; s.onerror = reject;
+          s.onload = () => { console.log('[Stripe] connect.js loaded, StripeConnect=', typeof window.StripeConnect); resolve(); };
+          s.onerror = (e) => { console.error('[Stripe] failed to load connect.js', e); reject(new Error('Failed to load Stripe script')); };
           document.head.appendChild(s);
         });
       }
 
+      console.log('[Stripe] StripeConnect type:', typeof window.StripeConnect);
+      if (!window.StripeConnect) throw new Error('StripeConnect not available after load');
+
       // Fetch publishable key
       const cfgRes = await fetch('/stripe-config');
       const cfgData = await cfgRes.json();
+      console.log('[Stripe] publishableKey prefix:', (cfgData.publishableKey||'').slice(0,12));
       if (!cfgData.publishableKey) throw new Error('Stripe config unavailable');
 
       // Initialize Stripe Connect with fetchClientSecret
@@ -2685,6 +2690,7 @@ function showSettingsDropdown(anchorEl) {
       inner.appendChild(onboardingComp);
 
     } catch(e) {
+      console.error('[Stripe] payout setup error:', e);
       overlay.remove();
       _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel;
       showToast('❌ ' + (e.message || 'Failed to load payout setup'));
