@@ -2607,93 +2607,54 @@ function showSettingsDropdown(anchorEl) {
     fontFamily:'inherit', width:'auto', fontWeight:'700'
   }, async () => {
     _connectBtn.disabled = true; _connectBtn.textContent = '⏳ Loading…';
-
-    // Build full-screen overlay
-    const overlay = div(null,{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,.85)',zIndex:'9999',display:'flex',flexDirection:'column'});
-    const topBar = div(null,{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:'1px solid #1a1a1a',background:'#0f0f0f',flexShrink:'0'});
-    ap(topBar,
-      ap(el('span',null,{fontSize:'15px',fontWeight:'900',color:'#e8c547'}),'⚡ DAYWORK — Payout Setup'),
-      btn(null,{background:'none',border:'1px solid #2a2a2a',color:'#888',borderRadius:'8px',padding:'6px 14px',fontSize:'12px',cursor:'pointer',fontFamily:'inherit',width:'auto',fontWeight:'700'}, ()=>{
-        overlay.remove();
-        _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel;
-      }, '✕ Close')
-    );
-    const mountPoint = div(null,{flex:'1',overflowY:'auto',padding:'24px',display:'flex',justifyContent:'center'});
-    const inner = div(null,{width:'100%',maxWidth:'680px'});
-    ap(mountPoint, inner);
-    ap(overlay, topBar, mountPoint);
-    document.body.appendChild(overlay);
-
     try {
-      // Load Stripe Connect JS if not already loaded
-      if (!window.StripeConnect) {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement('script');
-          s.src = 'https://connect-js.stripe.com/v1/connect.js';
-          s.onload = () => { console.log('[Stripe] connect.js loaded, StripeConnect=', typeof window.StripeConnect); resolve(); };
-          s.onerror = (e) => { console.error('[Stripe] failed to load connect.js', e); reject(new Error('Failed to load Stripe script')); };
-          document.head.appendChild(s);
-        });
-      }
+      const r = await fetch('/connect-onboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:U.name})});
+      const d = await r.json();
+      if (!d.url) throw new Error(d.error || 'Setup failed');
 
-      console.log('[Stripe] StripeConnect type:', typeof window.StripeConnect);
-      if (!window.StripeConnect) throw new Error('StripeConnect not available after load');
+      // Open Stripe onboarding in a popup — DAYWORK stays open in the background
+      const popup = window.open(d.url, 'stripe_payout', 'width=800,height=750,left=200,top=80');
 
-      // Fetch publishable key
-      const cfgRes = await fetch('/stripe-config');
-      const cfgData = await cfgRes.json();
-      console.log('[Stripe] publishableKey prefix:', (cfgData.publishableKey||'').slice(0,12));
-      if (!cfgData.publishableKey) throw new Error('Stripe config unavailable');
-
-      // Initialize Stripe Connect with fetchClientSecret
-      const stripeConnectInstance = StripeConnect.initialize({
-        publishableKey: cfgData.publishableKey,
-        fetchClientSecret: async () => {
-          const r = await fetch('/create-account-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:U.name})});
-          const d = await r.json();
-          if (!d.clientSecret) throw new Error(d.error || 'Session error');
-          return d.clientSecret;
-        },
-        appearance: {
-          overlays: 'drawer',
-          variables: {
-            colorBackground: '#12121a',
-            colorText: '#f0ede8',
-            colorDanger: '#ef4444',
-            fontFamily: "'Segoe UI', Arial, sans-serif",
-            spacingUnit: '4px',
-            borderRadius: '8px',
-          }
-        }
-      });
-
-      // Create and mount the account-onboarding component
-      const onboardingComp = stripeConnectInstance.create('account-onboarding');
-      onboardingComp.setOnExit(async () => {
-        overlay.remove();
-        _connectBtn.disabled = false;
-        // Re-check connect status and refresh UI
-        try {
-          const sr = await fetch('/connect-status?username='+encodeURIComponent(U.name));
-          const sd = await sr.json();
-          if (sd.status === 'active') {
-            U.stripeConnectId = sd.accountId || U.stripeConnectId;
-            localStorage.setItem('dw_user', JSON.stringify(U));
-            showToast('✅ Payout account connected!');
-          } else {
-            showToast('⚠️ Setup incomplete — finish anytime in Settings');
-          }
-        } catch(_){}
-        _connectBtn.textContent = _connectBtnLabel;
-        renderSettings(); // Refresh settings panel
-      });
-      inner.appendChild(onboardingComp);
+      // Show in-app overlay with "I'm Done" button
+      const overlay = div(null,{position:'fixed',top:'0',left:'0',width:'100%',height:'100%',background:'rgba(0,0,0,.7)',zIndex:'9999',display:'flex',alignItems:'center',justifyContent:'center',padding:'20px'});
+      const modal = div(null,{background:'#12121a',border:'1px solid #2a2a2a',borderRadius:'16px',padding:'32px 28px',maxWidth:'400px',width:'100%',textAlign:'center'});
+      ap(modal,
+        pp(null,{fontSize:'40px',marginBottom:'12px'},'🏦'),
+        ap(el('h3',null,{fontSize:'18px',fontWeight:'900',marginBottom:'10px',color:'#f0ede8'}),'Complete Your Payout Setup'),
+        pp(null,{fontSize:'13px',color:'#888',lineHeight:'1.6',marginBottom:'8px'},'A secure window opened for your bank setup. Come back here when you\'re done.'),
+        pp(null,{fontSize:'12px',color:'#555',marginBottom:'24px'},'(If the window was blocked, check your browser\'s popup blocker)'),
+        div(null,{display:'flex',flexDirection:'column',gap:'10px'},
+          btn('btn',{background:'linear-gradient(135deg,#7c3aed,#a78bfa)',color:'#fff',borderRadius:'10px',padding:'13px',fontWeight:'700',fontSize:'14px',border:'none'}, async ()=>{
+            overlay.remove();
+            if(popup && !popup.closed) popup.close();
+            _connectBtn.disabled = false;
+            // Re-check status
+            try {
+              const sr = await fetch('/connect-status?username='+encodeURIComponent(U.name));
+              const sd = await sr.json();
+              if(sd.connected){
+                U.stripeConnectId = sd.accountId || U.stripeConnectId;
+                localStorage.setItem('dw_user',JSON.stringify(U));
+                showToast('✅ Payout account connected!');
+              } else {
+                showToast('⚠️ Not finished yet — come back anytime in Settings');
+              }
+            } catch(_){}
+            _connectBtn.textContent = _connectBtnLabel;
+            renderSettings();
+          }, "✅ I'm Done"),
+          btn('btn',{background:'none',border:'1px solid #2a2a2a',color:'#555',borderRadius:'10px',padding:'10px',fontSize:'13px'}, ()=>{
+            overlay.remove();
+            _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel;
+          }, 'Not now')
+        )
+      );
+      ap(overlay, modal);
+      document.body.appendChild(overlay);
 
     } catch(e) {
-      console.error('[Stripe] payout setup error:', e);
-      overlay.remove();
       _connectBtn.disabled = false; _connectBtn.textContent = _connectBtnLabel;
-      showToast('❌ ' + (e.message || 'Failed to load payout setup'));
+      showToast('❌ ' + (e.message || 'Setup failed'));
     }
   }, _connectBtnLabel);
   ap(payoutStatus, _connectBtn);
