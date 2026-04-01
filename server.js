@@ -911,6 +911,9 @@ wss.on('connection', (ws, req) => {
         }
         else if(msg.key === 'ratings') { db.ratings = msg.val; dirty = true; }
         else if(msg.key === 'users' && Array.isArray(msg.val)) {
+          const existingNames = new Set((db.users||[]).map(u=>u.name));
+          const newCount = msg.val.filter(u=>u.name && !existingNames.has(u.name)).length;
+          if(newCount > 0) db.totalSignups = (db.totalSignups||0) + newCount;
           db.users = msg.val;
           dirty = true;
         }
