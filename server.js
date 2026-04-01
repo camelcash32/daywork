@@ -389,12 +389,17 @@ if(url === '/.well-known/assetlinks.json') {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       const payment = (db.payments||[]).find(p=>p.sessionId===sessionId);
       if (payment) {
-        payment.status = session.payment_status === 'paid' ? 'paid' : payment.status;
         payment.paymentIntentId = session.payment_intent || null;
+        if (payment.type === 'escrow') {
+          // For escrow, funds are authorized but not captured yet
+          payment.status = session.payment_intent ? 'authorized' : payment.status;
+        } else {
+          payment.status = session.payment_status === 'paid' ? 'paid' : payment.status;
+        }
         saveDB();
       }
       res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
-      res.end(JSON.stringify({ ok:true, status: payment?.status||'unknown' }));
+      res.end(JSON.stringify({ ok:true, status: payment?.status||'unknown', type: payment?.type||'payment' }));
     } catch(e) {
       res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
       res.end(JSON.stringify({ error: e.message }));
@@ -605,6 +610,120 @@ if(url === '/.well-known/assetlinks.json') {
       res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
       res.end(JSON.stringify({ error: e.message }));
     }})();
+    return;
+  }
+
+  // ── ESCROW: authorize funds when hirer accepts a worker ─────
+  // POST /create-escrow { jobId, jobTitle, workerName, hirerId, amount }
+  if (url === '/create-escrow' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured.' })); return;
+        }
+        let stripe;
+        try { stripe = require('stripe')(cfg.stripe_secret_key); } catch(e) {
+          res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe package not installed. Run: npm install' })); return;
+        }
+        const { jobId, jobTitle, workerName, hirerId, amount } = JSON.parse(body);
+        const amountCents = Math.round(parseFloat(amount) * 100);
+        if (!amountCents || amountCents < 50) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Amount must be at least $0.50' })); return;
+        }
+        const PLATFORM_FEE = 0.07;
+        const feeCents = Math.round(amountCents * PLATFORM_FEE);
+        const appUrl = cfg.app_url || 'http://localhost:3000';
+
+        // Look up worker's Stripe Connect account
+        const workerUser = (db.users||[]).find(u => u.name === workerName);
+        const workerConnectId = workerUser?.stripeConnectId && workerUser?.stripeConnectStatus === 'active'
+          ? workerUser.stripeConnectId : null;
+
+        const sessionParams = {
+          payment_method_types: ['card'],
+          line_items: [
+            { price_data: { currency:'usd', product_data:{ name: jobTitle||'DAYWORK Job', description:'Worker: '+workerName+' — funds held until job is complete' }, unit_amount: amountCents }, quantity:1 },
+            { price_data: { currency:'usd', product_data:{ name: 'DAYWORK Platform Fee (7%)' }, unit_amount: feeCents }, quantity:1 }
+          ],
+          mode: 'payment',
+          payment_intent_data: {
+            capture_method: 'manual',  // hold funds, don't capture yet
+            metadata: { jobId: String(jobId), workerName, hirerId, type:'escrow' }
+          },
+          success_url: appUrl+'/index.html?escrow=success&session_id={CHECKOUT_SESSION_ID}&job_id='+encodeURIComponent(jobId)+'&worker='+encodeURIComponent(workerName),
+          cancel_url:  appUrl+'/index.html?escrow=cancelled',
+          metadata: { jobId: String(jobId), workerName, hirerId, type:'escrow' }
+        };
+        if (workerConnectId) {
+          sessionParams.payment_intent_data.application_fee_amount = feeCents;
+          sessionParams.payment_intent_data.transfer_data = { destination: workerConnectId };
+        }
+        const session = await stripe.checkout.sessions.create(sessionParams);
+
+        if (!db.payments) db.payments = [];
+        db.payments.unshift({
+          sessionId: session.id,
+          type: 'escrow',
+          jobId, jobTitle, workerName, hirerId,
+          amount: amountCents/100,
+          fee: feeCents/100,
+          total: (amountCents+feeCents)/100,
+          status: 'pending_auth',
+          workerPaidDirect: !!workerConnectId,
+          date: new Date().toISOString()
+        });
+        if (db.payments.length > 1000) db.payments = db.payments.slice(0,1000);
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ url: session.url }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /release-payment { jobId, workerName } → capture held funds → pay worker
+  if (url === '/release-payment' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { jobId, workerName } = JSON.parse(body);
+        const payment = (db.payments||[]).find(p => p.type==='escrow' && String(p.jobId)===String(jobId) && p.workerName===workerName && p.status==='authorized');
+        if (!payment) {
+          res.writeHead(404, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'No authorized escrow payment found for this job.' })); return;
+        }
+        let paymentIntentId = payment.paymentIntentId;
+        if (!paymentIntentId) {
+          const session = await stripe.checkout.sessions.retrieve(payment.sessionId);
+          paymentIntentId = session.payment_intent;
+        }
+        if (!paymentIntentId) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Payment intent not found — escrow may not have been authorized.' })); return;
+        }
+        await stripe.paymentIntents.capture(paymentIntentId);
+        payment.status = 'captured';
+        payment.capturedAt = new Date().toISOString();
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
     return;
   }
 
