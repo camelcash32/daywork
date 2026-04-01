@@ -30,6 +30,7 @@ input:focus,select:focus,textarea:focus{border-color:#e8c547} select option{back
 .tag{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:700}
 .tag-y{background:rgba(232,197,71,.15);color:#e8c547;border:1px solid rgba(232,197,71,.3)}
 .tag-g{background:rgba(34,197,94,.1);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+.tag-r{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
 h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-weight:800}
 
 .jcard{background:#161616;border:1px solid #222;border-radius:12px;padding:16px;transition:all .2s;cursor:pointer}
@@ -1406,9 +1407,10 @@ function renderBrowse(){
   const zBad=zipIn2.length===5&&!ZIP_DATA[zipIn2];
   const ns=azl?azl.state:null;
   // Base filter (category + search) — radius applied async below
+  const sq=searchQ.toLowerCase().trim();
   const baseFiltered=[
-    ...jobs.filter(j=>{const jz=ZIP_DATA[j.zip];return(!ns||(jz&&jz.state===ns))&&(catFil==="All"||j.category===catFil)&&j.priority;}),
-    ...jobs.filter(j=>{const jz=ZIP_DATA[j.zip];return(!ns||(jz&&jz.state===ns))&&(catFil==="All"||j.category===catFil)&&!j.priority;})
+    ...jobs.filter(j=>{const jz=ZIP_DATA[j.zip];return(!ns||(jz&&jz.state===ns))&&(catFil==="All"||j.category===catFil)&&(!sq||((j.title||'').toLowerCase().includes(sq)||(j.description||'').toLowerCase().includes(sq)))&&j.priority;}),
+    ...jobs.filter(j=>{const jz=ZIP_DATA[j.zip];return(!ns||(jz&&jz.state===ns))&&(catFil==="All"||j.category===catFil)&&(!sq||((j.title||'').toLowerCase().includes(sq)||(j.description||'').toLowerCase().includes(sq)))&&!j.priority;})
   ];
   // Use baseFiltered as filtered (radius filtering happens async via filterByRadius on job cards)
   const filtered=baseFiltered;
@@ -1460,6 +1462,16 @@ function renderBrowse(){
   if(azl) ap(filterRow,span(null,{fontSize:"12px",color:"#a78bfa",fontWeight:"600"},"📍 "+azl.city+", "+azl.state));
   if(zBad) ap(filterRow,span(null,{fontSize:"12px",color:"#ef4444"},"ZIP not found"));
   ap(w,filterRow);
+
+  // Search bar
+  const searchWrap=div(null,{position:"relative",marginBottom:"14px"});
+  const searchIn=inp("text","🔍 Search jobs by title or description…",searchQ,e=>{searchQ=e.target.value;debounceSearch();},{paddingLeft:"14px",paddingRight:searchQ?"32px":"14px"});
+  ap(searchWrap,searchIn);
+  if(searchQ){
+    const clearBtn=btn(null,{position:"absolute",right:"10px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#555",cursor:"pointer",fontSize:"16px",padding:"0",width:"auto",lineHeight:"1"},()=>{searchQ="";rerender();},"✕");
+    ap(searchWrap,clearBtn);
+  }
+  ap(w,searchWrap);
 
   const catRow=div(null,{display:"flex",gap:"6px",marginBottom:"16px",flexWrap:"wrap"});
   CATS.forEach(c=>{
@@ -1577,8 +1589,7 @@ function renderDetail(){
     div(null,{},p2(null,{fontWeight:"600",fontSize:"14px",marginBottom:"3px"},job.postedBy),rBadge(job.postedBy))
   );
   ap(inner,posterBox);
-  if(job.expiresAt){ap(inner,ap(div(null,{background:"#111",borderRadius:"8px",padding:"10px 12px",marginBottom:"14px"}),p2(null,{fontSize:"10px",color:"#444",marginBottom:"5px",fontWeight:"700",letterSpacing:".08em"},"⏰ TIME TO ACCEPT"),timerBadge(job,null)));}
-  if(job.expiresAt){const tb=timerBadge(job,null);tb.style.marginBottom="14px";ap(inner,div(null,{marginBottom:"14px"},p2(null,{fontSize:"11px",color:"#444",marginBottom:"4px",fontWeight:"700",letterSpacing:".06em"},"JOB EXPIRES IN"),timerBadge(job,null)));}
+  if(job.expiresAt){ap(inner,ap(div(null,{background:"#111",borderRadius:"8px",padding:"10px 12px",marginBottom:"14px"}),p2(null,{fontSize:"10px",color:"#444",marginBottom:"5px",fontWeight:"700",letterSpacing:".08em"},"JOB EXPIRES IN"),timerBadge(job,null)));}
 
   // ── ACTIONS ──────────────────────────────────────────────────
   try {
@@ -2086,6 +2097,8 @@ function wsConnect(){
           } else if(msg.key==='ratings' && typeof msg.val==='object'){
             ratings = msg.val;
             rerender();
+          } else if(msg.key==='users' && Array.isArray(msg.val)){
+            try{localStorage.setItem('dw_users', JSON.stringify(msg.val));}catch(e){}
           } else if(msg.key && msg.key.startsWith('chat_')){
             onChatWSUpdate(msg.key, msg.val);
           }
@@ -2747,6 +2760,8 @@ if(_savedUser){U=_savedUser;}
 try{
   const _p=new URLSearchParams(window.location.search);
   if(_p.get('signup')==='1'){sessionStorage.setItem('_startSignup','1');}
+  if(_p.get('mode')==='poster'){save('userMode','poster');mode='poster';}
+  if(_p.get('mode')==='seeker'){save('userMode','seeker');mode='seeker';}
 }catch(e){}
 rerender();
 startTimerTick();
