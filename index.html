@@ -534,7 +534,9 @@ function renderAuth(accentColor, role, onLogin){
         const email = fEmail.value.trim().toLowerCase();
         if(!email||!email.includes("@")){fErr.textContent="Enter a valid email.";return;}
         fErr.textContent="";
-        try{ await fetch(location.protocol+"//"+location.host+"/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}); }catch(e){}
+        const localUsers = load("users", MOCK_USERS);
+        const localUser = localUsers.find(u => u.email && u.email.toLowerCase() === email) || null;
+        try{ await fetch(location.protocol+"//"+location.host+"/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email, user: localUser})}); }catch(e){}
         fSuccess.style.display=""; fSuccess.textContent="If that email is registered, a reset link is on its way. Check your inbox.";
         fEmail.disabled=true;
       };

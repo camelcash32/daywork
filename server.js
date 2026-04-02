@@ -920,12 +920,18 @@ if(url === '/.well-known/assetlinks.json') {
     req.on('data', d => body += d);
     req.on('end', async () => {
       try {
-        const { email } = JSON.parse(body);
+        const { email, user: clientUser } = JSON.parse(body);
         // Always respond OK — never reveal whether email is registered
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         if (email) {
-          const users = db.users || [];
-          const user = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+          if (!db.users) db.users = [];
+          let user = db.users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+          // If not in server db but client sent local user data, register and use it
+          if (!user && clientUser && clientUser.email && clientUser.email.toLowerCase() === email.toLowerCase()) {
+            db.users.push(clientUser);
+            dirty = true;
+            user = clientUser;
+          }
           if (user) {
             const crypto = require('crypto');
             const token = crypto.randomBytes(32).toString('hex');
