@@ -9,8 +9,9 @@ function getCfg() {
   let cfg = {};
   try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
   return {
-    stripe_secret_key:    process.env.STRIPE_SECRET_KEY    || cfg.stripe_secret_key    || '',
-    bulletin_token:       process.env.BULLETIN_TOKEN       || cfg.bulletin_token       || 'dw-bulletin-admin-2024',
+    stripe_secret_key:      process.env.STRIPE_SECRET_KEY      || cfg.stripe_secret_key      || '',
+    stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY || cfg.stripe_publishable_key || '',
+    bulletin_token:         process.env.BULLETIN_TOKEN         || cfg.bulletin_token         || 'dw-bulletin-admin-2024',
     app_url:              process.env.APP_URL               || cfg.app_url               || 'http://localhost:3000',
     resend_api_key:       process.env.RESEND_API_KEY       || cfg.resend_api_key       || '',
     email_from:           process.env.EMAIL_FROM           || cfg.email_from           || 'DAYWORK <noreply@godaywork.com>',
@@ -46,6 +47,12 @@ function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2
 let db  = loadDB();
 let mod = loadMod();
 let dirty = false;
+
+// Ensure totalSignups is at least the number of known users (fixes zero counter after retroactive deploy)
+if ((db.totalSignups||0) < (db.users||[]).length) {
+  db.totalSignups = (db.users||[]).length;
+  dirty = true;
+}
 
 // ── Seed demo jobs if empty ───────────────────────────────────
 if (!db.jobs || !db.jobs.length) {
@@ -536,6 +543,62 @@ if(url === '/.well-known/assetlinks.json') {
       res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
       res.end(JSON.stringify({ ok:true }));
     } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  // ── STRIPE CONFIG: expose publishable key to frontend ────────
+  if (url === '/stripe-config' && req.method === 'GET') {
+    const cfg = getCfg();
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify({ publishableKey: cfg.stripe_publishable_key || '' }));
+    return;
+  }
+
+  // ── STRIPE CONNECT: create embedded account session ──────────
+  // POST /create-account-session { username } → returns { clientSecret }
+  if (url === '/create-account-session' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured.' })); return;
+        }
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { username } = JSON.parse(body);
+        if (!username) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'Missing username'})); return; }
+
+        if (!db.users) db.users = [];
+        let user = db.users.find(u => u.name === username);
+        if (!user) {
+          user = { name: username, id: 'u_' + Date.now() };
+          db.users.push(user);
+          saveDB();
+        }
+
+        let accountId = user.stripeConnectId;
+        if (!accountId) {
+          const account = await stripe.accounts.create({ type: 'express', country: 'US', capabilities: { transfers: { requested: true } } });
+          accountId = account.id;
+          user.stripeConnectId = accountId;
+          user.stripeConnectStatus = 'pending';
+          saveDB();
+          broadcast({ type:'update', key:'users', val:db.users });
+        }
+
+        const accountSession = await stripe.accountSessions.create({
+          account: accountId,
+          components: { account_onboarding: { enabled: true } },
+        });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ clientSecret: accountSession.client_secret }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
     return;
   }
 
