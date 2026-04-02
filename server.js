@@ -889,6 +889,30 @@ if(url === '/.well-known/assetlinks.json') {
     res.end(); return;
   }
 
+  // ── REGISTER USER (called on signup to ensure server has the account) ───
+  // POST /register-user  body: {id, email, name, password, ...}
+  if (url === '/register-user' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const user = JSON.parse(body);
+        if (!user.email || !user.name) { res.writeHead(400); res.end('Bad request'); return; }
+        if (!db.users) db.users = [];
+        const exists = db.users.find(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+        if (!exists) {
+          db.users.push(user);
+          dirty = true;
+        }
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
   // ── FORGOT PASSWORD ──────────────────────────────────────────
   // POST /forgot-password  body: {email}
   if (url === '/forgot-password' && req.method === 'POST') {

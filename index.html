@@ -455,6 +455,8 @@ function renderAuth(accentColor, role, onLogin){
           joinDate:new Date().toLocaleDateString(),emailVerified:true};
         const updated=[...load("users",MOCK_USERS),newUser];
         save("users",updated);
+        // Register user on server immediately via HTTP (don't rely on WebSocket timing)
+        fetch(location.protocol+"//"+location.host+"/register-user",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(newUser)}).catch(()=>{});
         pendingUser=newUser; authView="profile"; _savedAuthView="profile";
         rebuild();
       };
