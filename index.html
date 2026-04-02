@@ -64,13 +64,16 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
   .g3{grid-template-columns:1fr 1fr!important}
 
   /* Post form: side-by-side panels → stack */
-  div[style*="display:flex"][style*="gap:"24px""]{flex-direction:column!important}
+  div[style*="display:flex"][style*="gap:\"24px\""]{flex-direction:column!important}
+
+  /* Post form grid → single column on mobile */
+  div[style*="grid-template-columns"]{grid-template-columns:1fr!important}
 
   /* Job cards */
   .jcard{padding:14px!important}
 
   /* Browse: job list + sidebar → stack */
-  div[style*="maxWidth:"960px""]{padding:16px 12px!important}
+  div[style*="maxWidth:\"960px\""]{padding:16px 12px!important}
 
   /* Toggle labels shorter on small screens */
   .toggle-opt{padding:5px 10px!important;font-size:11px!important}
