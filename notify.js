@@ -1,4 +1,4 @@
-// ── DAYWORK NOTIFICATION SERVICE (Resend) ────────────────────
+// ── GoDayWork NOTIFICATION SERVICE (Resend) ────────────────────
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -11,7 +11,7 @@ function loadConfig() {
   } catch(e) {}
   return {
     resend_api_key: process.env.RESEND_API_KEY || cfg.resend_api_key || '',
-    email_from:     process.env.EMAIL_FROM     || cfg.email_from     || 'DAYWORK <noreply@godaywork.com>',
+    email_from:     process.env.EMAIL_FROM     || cfg.email_from     || 'GoDayWork <noreply@godaywork.com>',
   };
 }
 
@@ -24,7 +24,7 @@ async function sendEmail(to, subject, html) {
     return false;
   }
 
-  const fromAddr = config.email_from || 'DAYWORK <onboarding@resend.dev>';
+  const fromAddr = config.email_from || 'GoDayWork <onboarding@resend.dev>';
 
   const payload = JSON.stringify({
     from: fromAddr,
@@ -71,10 +71,10 @@ async function notifyJobAccepted({ job, workerName, posterName }) {
   const jobTitle = job.title || 'your job';
 
   if (job.notifyEmail && job.notifyEmailAddr) {
-    const subject = `⚡ DAYWORK: ${workerName} accepted your job!`;
+    const subject = `⚡ GoDayWork: ${workerName} accepted your job!`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
-        <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+        <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
         <h3 style="margin-bottom:16px">Someone accepted your job!</h3>
         <div style="background:#1a1a1a;border-radius:8px;padding:16px;margin-bottom:16px">
           <p style="color:#aaa;margin-bottom:4px">Job</p>
@@ -84,8 +84,8 @@ async function notifyJobAccepted({ job, workerName, posterName }) {
           <p style="color:#aaa;margin-bottom:4px">Worker</p>
           <p style="font-weight:700;font-size:16px;color:#22c55e">✓ ${workerName}</p>
         </div>
-        <p style="color:#555;font-size:13px">Log in to DAYWORK to chat and confirm details.</p>
-        <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:12px">Open DAYWORK →</a>
+        <p style="color:#555;font-size:13px">Log in to GoDayWork to chat and confirm details.</p>
+        <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:12px">Open GoDayWork →</a>
       </div>`;
     results.email = await sendEmail(job.notifyEmailAddr, subject, html);
   }
@@ -97,10 +97,10 @@ async function notifyJobApplied({ job, workerName }) {
   const jobTitle = job.title || 'your job';
 
   if (job.notifyEmail && job.notifyEmailAddr) {
-    const subject = `⚡ DAYWORK: New applicant for "${jobTitle}"`;
+    const subject = `⚡ GoDayWork: New applicant for "${jobTitle}"`;
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
-        <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+        <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
         <h3 style="margin-bottom:16px">New applicant on your job!</h3>
         <div style="background:#1a1a1a;border-radius:8px;padding:16px;margin-bottom:16px">
           <p style="color:#aaa;margin-bottom:4px">Job</p>
