@@ -14,7 +14,7 @@ function getCfg() {
     bulletin_token:         process.env.BULLETIN_TOKEN         || cfg.bulletin_token         || 'dw-bulletin-admin-2024',
     app_url:              process.env.APP_URL               || cfg.app_url               || 'http://localhost:3000',
     resend_api_key:       process.env.RESEND_API_KEY       || cfg.resend_api_key       || '',
-    email_from:           process.env.EMAIL_FROM           || cfg.email_from           || 'DAYWORK <noreply@godaywork.com>',
+    email_from:           process.env.EMAIL_FROM           || cfg.email_from           || 'GoDayWork <noreply@godaywork.com>',
   };
 }
 const WebSocket = require('ws');
@@ -123,10 +123,10 @@ async function notifySeekersNewJob(job) {
     console.log('[NOTIFY] No seekers to notify');
     return;
   }
-  const subject = `⚡ DAYWORK: New job near you — "${job.title}"`;
+  const subject = `⚡ GoDayWork: New job near you — "${job.title}"`;
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
-      <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+      <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
       <h3 style="margin-bottom:16px">A new job was just posted!</h3>
       <div style="background:#1a1a1a;border-radius:10px;padding:16px;margin-bottom:16px">
         <p style="font-weight:700;font-size:18px;margin-bottom:8px">${job.title}</p>
@@ -135,9 +135,9 @@ async function notifySeekersNewJob(job) {
         <p style="color:#aaa;margin-bottom:4px">📅 ${job.date}</p>
         ${job.description ? `<p style="color:#888;font-size:13px;margin-top:8px">${job.description.slice(0,150)}${job.description.length>150?'...':''}</p>` : ''}
       </div>
-      <p style="color:#555;font-size:13px;margin-bottom:16px">Log in to DAYWORK to apply before it fills up. Jobs expire in 24 hours!</p>
+      <p style="color:#555;font-size:13px;margin-bottom:16px">Log in to GoDayWork to apply before it fills up. Jobs expire in 24 hours!</p>
       <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">View Job →</a>
-      <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this because you have a DAYWORK account. Log in to manage your notification settings.</p>
+      <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this because you have a GoDayWork account. Log in to manage your notification settings.</p>
     </div>`;
 
   let sent = 0;
@@ -265,10 +265,10 @@ if(url === '/.well-known/assetlinks.json') {
         let notify2;
         try { notify2 = require('./notify'); } catch(e) { notify2 = null; }
         if (notify2) {
-          const subject = `⚡ DAYWORK Feedback [${type}] from ${name}`;
+          const subject = `⚡ GoDayWork Feedback [${type}] from ${name}`;
           const html = `
             <div style="font-family:Arial,sans-serif;max-width:500px;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
-              <h2 style="color:#e8c547">⚡ DAYWORK — New Feedback</h2>
+              <h2 style="color:#e8c547">⚡ GoDayWork — New Feedback</h2>
               <p><strong>From:</strong> ${name} (${email||'no email'})</p>
               <p><strong>Type:</strong> ${type}</p>
               <p><strong>Message:</strong></p>
@@ -306,16 +306,16 @@ if(url === '/.well-known/assetlinks.json') {
           console.log('[VERIFY] Dev mode — code for '+email+': '+code);
           return;
         }
-        const subject = '⚡ DAYWORK — Your verification code: ' + code;
+        const subject = '⚡ GoDayWork — Your verification code: ' + code;
         const html = `
           <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:28px;border-radius:12px">
-            <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+            <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
             <h3 style="margin-bottom:16px">Verify your email</h3>
             <p style="color:#aaa;margin-bottom:20px">Hi ${username}, enter this code to confirm your account:</p>
             <div style="background:#1a1a1a;border-radius:10px;padding:20px;text-align:center;margin-bottom:20px">
               <span style="font-size:36px;font-weight:900;letter-spacing:.2em;color:#e8c547">${code}</span>
             </div>
-            <p style="color:#555;font-size:13px">This code expires in 10 minutes. If you didn't sign up for DAYWORK, ignore this email.</p>
+            <p style="color:#555;font-size:13px">This code expires in 10 minutes. If you didn't sign up for GoDayWork, ignore this email.</p>
           </div>`;
         const ok = await notify2.sendEmail(email, subject, html);
         if (!ok) console.log('[VERIFY] Email failed — code for '+email+': '+code);
@@ -720,8 +720,8 @@ if(url === '/.well-known/assetlinks.json') {
         const sessionParams = {
           payment_method_types: ['card'],
           line_items: [
-            { price_data: { currency:'usd', product_data:{ name: jobTitle||'DAYWORK Job', description:'Worker: '+workerName+' — funds held until job is complete' }, unit_amount: amountCents }, quantity:1 },
-            { price_data: { currency:'usd', product_data:{ name: 'DAYWORK Platform Fee (7%)' }, unit_amount: feeCents }, quantity:1 }
+            { price_data: { currency:'usd', product_data:{ name: jobTitle||'GoDayWork Job', description:'Worker: '+workerName+' — funds held until job is complete' }, unit_amount: amountCents }, quantity:1 },
+            { price_data: { currency:'usd', product_data:{ name: 'GoDayWork Platform Fee (7%)' }, unit_amount: feeCents }, quantity:1 }
           ],
           mode: 'payment',
           payment_intent_data: {
@@ -830,8 +830,8 @@ if(url === '/.well-known/assetlinks.json') {
         const tipCents = tip ? Math.round(parseFloat(tip) * 100) : 0;
         const appUrl = cfg.app_url || 'http://localhost:3000';
         const lineItems = [
-          { price_data: { currency:'usd', product_data:{ name: jobTitle||'DAYWORK Job', description:'Worker: '+workerName }, unit_amount: workerAmountCents }, quantity:1 },
-          { price_data: { currency:'usd', product_data:{ name: 'DAYWORK Platform Fee (7%)', description:'Service fee' }, unit_amount: feeCents }, quantity:1 }
+          { price_data: { currency:'usd', product_data:{ name: jobTitle||'GoDayWork Job', description:'Worker: '+workerName }, unit_amount: workerAmountCents }, quantity:1 },
+          { price_data: { currency:'usd', product_data:{ name: 'GoDayWork Platform Fee (7%)', description:'Service fee' }, unit_amount: feeCents }, quantity:1 }
         ];
         if (tipCents >= 50) {
           lineItems.push({ price_data: { currency:'usd', product_data:{ name: 'Tip for '+workerName, description:'100% goes to the worker' }, unit_amount: tipCents }, quantity:1 });
@@ -948,10 +948,10 @@ if(url === '/.well-known/assetlinks.json') {
             let notify2;
             try { notify2 = require('./notify'); } catch(e) { console.log('[RESET] notify load error:', e.message); notify2 = null; }
             if (notify2) {
-              const subject = '⚡ DAYWORK — Reset your password';
+              const subject = '⚡ GoDayWork — Reset your password';
               const html = `
                 <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:28px;border-radius:12px">
-                  <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+                  <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
                   <h3 style="margin-bottom:16px">Reset your password</h3>
                   <p style="color:#aaa;margin-bottom:20px">Hi ${user.name}, click the button below to reset your password. This link expires in 15 minutes.</p>
                   <a href="${resetUrl}" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Reset Password →</a>
@@ -1285,7 +1285,7 @@ server.listen(PORT, '0.0.0.0', () => {
   const ifaces = require('os').networkInterfaces();
   let ip = 'YOUR-IP';
   Object.values(ifaces).flat().forEach(i => { if(i.family==='IPv4'&&!i.internal) ip=i.address; });
-  console.log('\n  ⚡ DAYWORK SERVER RUNNING');
+  console.log('\n  ⚡ GoDayWork SERVER RUNNING');
   console.log('  ─────────────────────────────────────');
   console.log(`  App:     http://localhost:${PORT}`);
   console.log(`  Network: http://${ip}:${PORT}`);
