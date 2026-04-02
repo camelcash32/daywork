@@ -921,16 +921,19 @@ if(url === '/.well-known/assetlinks.json') {
     req.on('end', async () => {
       try {
         const { email, user: clientUser } = JSON.parse(body);
+        console.log('[RESET] Request for:', email, '| clientUser provided:', !!clientUser);
         // Always respond OK — never reveal whether email is registered
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         if (email) {
           if (!db.users) db.users = [];
           let user = db.users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+          console.log('[RESET] Found in db.users:', !!user, '| db.users count:', db.users.length);
           // If not in server db but client sent local user data, register and use it
           if (!user && clientUser && clientUser.email && clientUser.email.toLowerCase() === email.toLowerCase()) {
             db.users.push(clientUser);
             dirty = true;
             user = clientUser;
+            console.log('[RESET] Registered from client data');
           }
           if (user) {
             const crypto = require('crypto');
@@ -941,8 +944,9 @@ if(url === '/.well-known/assetlinks.json') {
             saveDB();
             const cfg = getCfg();
             const resetUrl = `${cfg.app_url}?reset=${token}`;
+            console.log('[RESET] Token generated, sending email to:', email, '| notify available:', !!notify);
             let notify2;
-            try { notify2 = require('./notify'); } catch(e) { notify2 = null; }
+            try { notify2 = require('./notify'); } catch(e) { console.log('[RESET] notify load error:', e.message); notify2 = null; }
             if (notify2) {
               const subject = '⚡ DAYWORK — Reset your password';
               const html = `
@@ -953,10 +957,13 @@ if(url === '/.well-known/assetlinks.json') {
                   <a href="${resetUrl}" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Reset Password →</a>
                   <p style="color:#555;font-size:12px;margin-top:20px">If you didn't request this, you can safely ignore this email.</p>
                 </div>`;
-              await notify2.sendEmail(email, subject, html);
+              const sent = await notify2.sendEmail(email, subject, html);
+              console.log('[RESET] Email send result:', sent);
             } else {
-              console.log('[RESET] Dev mode — reset URL for ' + email + ': ' + resetUrl);
+              console.log('[RESET] No notify — reset URL:', resetUrl);
             }
+          } else {
+            console.log('[RESET] No user found, skipping email');
           }
         }
         res.end(JSON.stringify({ ok: true }));
