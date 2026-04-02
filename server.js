@@ -889,6 +889,90 @@ if(url === '/.well-known/assetlinks.json') {
     res.end(); return;
   }
 
+  // ── FORGOT PASSWORD ──────────────────────────────────────────
+  // POST /forgot-password  body: {email}
+  if (url === '/forgot-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const { email } = JSON.parse(body);
+        // Always respond OK — never reveal whether email is registered
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        if (email) {
+          const users = db.users || [];
+          const user = users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+          if (user) {
+            const crypto = require('crypto');
+            const token = crypto.randomBytes(32).toString('hex');
+            if (!db.resetTokens) db.resetTokens = [];
+            db.resetTokens = db.resetTokens.filter(t => t.email !== email.toLowerCase());
+            db.resetTokens.push({ token, email: email.toLowerCase(), expires: Date.now() + 15*60*1000 });
+            saveDB();
+            const cfg = getCfg();
+            const resetUrl = `${cfg.app_url}?reset=${token}`;
+            let notify2;
+            try { notify2 = require('./notify'); } catch(e) { notify2 = null; }
+            if (notify2) {
+              const subject = '⚡ DAYWORK — Reset your password';
+              const html = `
+                <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:28px;border-radius:12px">
+                  <h2 style="color:#e8c547;margin-bottom:8px">⚡ DAYWORK</h2>
+                  <h3 style="margin-bottom:16px">Reset your password</h3>
+                  <p style="color:#aaa;margin-bottom:20px">Hi ${user.name}, click the button below to reset your password. This link expires in 15 minutes.</p>
+                  <a href="${resetUrl}" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Reset Password →</a>
+                  <p style="color:#555;font-size:12px;margin-top:20px">If you didn't request this, you can safely ignore this email.</p>
+                </div>`;
+              await notify2.sendEmail(email, subject, html);
+            } else {
+              console.log('[RESET] Dev mode — reset URL for ' + email + ': ' + resetUrl);
+            }
+          }
+        }
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // ── RESET PASSWORD ───────────────────────────────────────────
+  // POST /reset-password  body: {token, password}
+  if (url === '/reset-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { token, password } = JSON.parse(body);
+        if (!token || !password || password.length < 6) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Invalid request.' })); return;
+        }
+        if (!db.resetTokens) db.resetTokens = [];
+        const entry = db.resetTokens.find(t => t.token === token);
+        if (!entry || Date.now() > entry.expires) {
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Reset link is invalid or expired. Please request a new one.' })); return;
+        }
+        const users = db.users || [];
+        const idx = users.findIndex(u => u.email && u.email.toLowerCase() === entry.email);
+        if (idx === -1) {
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Account not found.' })); return;
+        }
+        db.users[idx].password = password;
+        db.resetTokens = db.resetTokens.filter(t => t.token !== token);
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
   res.writeHead(404); res.end('Not found');
 });
 

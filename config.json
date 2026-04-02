@@ -1,9 +1,9 @@
 {
   "_readme": "DAYWORK configuration",
-  "resend_api_key": "re_DWgPamVa_AYj7XpjptboeBepviY4MJUne",
+  "resend_api_key": "",
   "email_from": "DAYWORK <noreply@godaywork.com>",
   "bulletin_token": "dw-bulletin-admin-2024",
   "stripe_secret_key": "",
   "stripe_publishable_key": "pk_test_YOUR_STRIPE_PUBLISHABLE_KEY_HERE",
-  "app_url": "http://localhost:3000"
+  "app_url": "https://www.godaywork.com"
 }

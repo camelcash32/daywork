@@ -352,6 +352,10 @@ function renderAuth(accentColor, role, onLogin){
       const pIn = inp("password","Password","");
       pIn.setAttribute("name","password");
       pIn.setAttribute("autocomplete","current-password");
+      const pWrap = div(null,{position:"relative"});
+      const eyeLogin = el("button",null,{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:"16px",color:"#555",padding:"0",lineHeight:"1",opacity:"0.5"},{type:"button"});
+      eyeLogin.textContent="👁";
+      eyeLogin.onclick=()=>{pIn.type=pIn.type==="password"?"text":"password";eyeLogin.style.opacity=pIn.type==="text"?"1":"0.5";};
       const errP = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
       const doLogin = ()=>{
         const users = load("users", MOCK_USERS);
@@ -364,9 +368,14 @@ function renderAuth(accentColor, role, onLogin){
         wsSend("users", allUsers3);
       };
       pIn.addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
+      const forgotLink = ap(el("span",null,{color:"#a78bfa",cursor:"pointer",textDecoration:"underline",fontSize:"12px"}),"Forgot password?");
+      forgotLink.onclick = ()=>{ authView="forgot"; _savedAuthView="forgot"; rebuild(); };
+      const forgotRow = div(null,{textAlign:"right",marginTop:"4px",marginBottom:"8px"});
+      ap(forgotRow, forgotLink);
       ap(loginForm,
         ap(div(null,{marginBottom:"10px"}),lbl("EMAIL"),eIn),
-        ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD"),pIn),
+        ap(div(null,{marginBottom:"2px"}),lbl("PASSWORD"),ap(pWrap,pIn,eyeLogin)),
+        forgotRow,
         errP,
         btn("btn btn-accent",{marginBottom:"14px","--accent":accentColor},doLogin,"Sign In →")
       );
@@ -509,6 +518,74 @@ function renderAuth(accentColor, role, onLogin){
         ap(div(null,{textAlign:"center",marginTop:"8px",fontSize:"13px",color:"#555"}),"Wrong email? ",backLinkV)
       );
       ap(box,card_v);
+
+    } else if(authView === "forgot"){
+      ap(box, pp(null,{fontSize:"10px",fontWeight:"700",color:accentColor,letterSpacing:".18em",marginBottom:"10px"}),"RESET PASSWORD");
+      ap(box, ap(el("h1",null,{marginBottom:"6px",lineHeight:"1.1"}),"Forgot your password?"));
+      ap(box, pp(null,{fontSize:"13px",color:"#555",marginBottom:"20px"}),"Enter your email and we'll send you a reset link.");
+      const cardF = div(null,{width:"100%",background:"#131313",border:"1px solid #222",borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"14px"});
+      const fEmail = inp("email","your@email.com","");
+      fEmail.setAttribute("name","email"); fEmail.setAttribute("autocomplete","email");
+      const fErr = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
+      const fSuccess = pp(null,{color:"#22c55e",fontSize:"13px",display:"none"});
+      const doForgot = async ()=>{
+        const email = fEmail.value.trim().toLowerCase();
+        if(!email||!email.includes("@")){fErr.textContent="Enter a valid email.";return;}
+        fErr.textContent="";
+        try{ await fetch(location.protocol+"//"+location.host+"/forgot-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})}); }catch(e){}
+        fSuccess.style.display=""; fSuccess.textContent="If that email is registered, a reset link is on its way. Check your inbox.";
+        fEmail.disabled=true;
+      };
+      fEmail.addEventListener("keydown",e=>{if(e.key==="Enter")doForgot();});
+      const backToLogin = ap(el("span",null,{color:"#a78bfa",cursor:"pointer",textDecoration:"underline",fontWeight:"700"}),"Back to sign in");
+      backToLogin.onclick=()=>{authView="login";_savedAuthView="login";rebuild();};
+      ap(cardF,
+        ap(div(null,{marginBottom:"10px"}),lbl("EMAIL"),fEmail),
+        fErr, fSuccess,
+        btn("btn btn-accent",{marginBottom:"12px","--accent":accentColor},doForgot,"Send Reset Link →"),
+        ap(div(null,{textAlign:"center",fontSize:"13px",color:"#555",marginTop:"4px"}),backToLogin)
+      );
+      ap(box, cardF);
+
+    } else if(authView === "reset"){
+      if(!_savedResetToken){ authView="login"; _savedAuthView="login"; return buildView(); }
+      ap(box, pp(null,{fontSize:"10px",fontWeight:"700",color:accentColor,letterSpacing:".18em",marginBottom:"10px"}),"NEW PASSWORD");
+      ap(box, ap(el("h1",null,{marginBottom:"6px",lineHeight:"1.1"}),"Set a new password"));
+      ap(box, pp(null,{fontSize:"13px",color:"#555",marginBottom:"20px"}),"Choose a new password for your account.");
+      const cardR = div(null,{width:"100%",background:"#131313",border:"1px solid #222",borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"14px"});
+      const rpw1 = inp("password","New password (min 6 chars)","");
+      const rpWrap1 = div(null,{position:"relative"});
+      const rEye1 = el("button",null,{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:"16px",color:"#555",padding:"0",lineHeight:"1",opacity:"0.5"},{type:"button"});
+      rEye1.textContent="👁"; rEye1.onclick=()=>{rpw1.type=rpw1.type==="password"?"text":"password";rEye1.style.opacity=rpw1.type==="text"?"1":"0.5";};
+      const rpw2 = inp("password","Confirm new password","");
+      const rpWrap2 = div(null,{position:"relative"});
+      const rEye2 = el("button",null,{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:"16px",color:"#555",padding:"0",lineHeight:"1",opacity:"0.5"},{type:"button"});
+      rEye2.textContent="👁"; rEye2.onclick=()=>{rpw2.type=rpw2.type==="password"?"text":"password";rEye2.style.opacity=rpw2.type==="text"?"1":"0.5";};
+      const rErr = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
+      const rSuccess = pp(null,{color:"#22c55e",fontSize:"13px",display:"none"});
+      const doReset = async ()=>{
+        if(rpw1.value.length<6){rErr.textContent="Password must be at least 6 characters.";return;}
+        if(rpw1.value!==rpw2.value){rErr.textContent="Passwords do not match.";return;}
+        rErr.textContent="";
+        try{
+          const r = await fetch(location.protocol+"//"+location.host+"/reset-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:_savedResetToken,password:rpw1.value})});
+          const d = await r.json();
+          if(!d.ok){rErr.textContent=d.error||"Reset link is invalid or expired. Please request a new one.";return;}
+          try{history.replaceState({},'',location.pathname);}catch(e){}
+          _savedResetToken=null;
+          rSuccess.style.display=""; rSuccess.textContent="Password updated! Signing you in…";
+          rpw1.disabled=true; rpw2.disabled=true;
+          setTimeout(()=>{authView="login";_savedAuthView="login";rebuild();},1500);
+        }catch(e){rErr.textContent="Something went wrong. Please try again.";}
+      };
+      rpw2.addEventListener("keydown",e=>{if(e.key==="Enter")doReset();});
+      ap(cardR,
+        ap(div(null,{marginBottom:"10px"}),lbl("NEW PASSWORD"),ap(rpWrap1,rpw1,rEye1)),
+        ap(div(null,{marginBottom:"10px"}),lbl("CONFIRM PASSWORD"),ap(rpWrap2,rpw2,rEye2)),
+        rErr, rSuccess,
+        btn("btn btn-accent",{marginBottom:"12px","--accent":accentColor},doReset,"Reset Password →")
+      );
+      ap(box, cardR);
 
     } else if(authView === "profile"){
       if(!pendingUser){ authView="login"; _savedAuthView="login"; return buildView(); }
@@ -1247,6 +1324,7 @@ function renderApplicants(){
 let _activeChatKey = null;
 let _savedAuthView = 'login';
 let _savedPendingVerify = null;
+let _savedResetToken = null;
 let _activeChatRender = null;
 let _chatNotifs = {};
 
@@ -3067,6 +3145,7 @@ try{
   if(_p.get('signup')==='1'){sessionStorage.setItem('_startSignup','1');}
   if(_p.get('mode')==='poster'){save('userMode','poster');mode='poster';}
   if(_p.get('mode')==='seeker'){save('userMode','seeker');mode='seeker';}
+  if(_p.get('reset')){_savedResetToken=_p.get('reset');_savedAuthView='reset';U=null;}
 }catch(e){}
 rerender();
 startTimerTick();
