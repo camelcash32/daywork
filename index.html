@@ -63,11 +63,8 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
   .g2{grid-template-columns:1fr!important}
   .g3{grid-template-columns:1fr 1fr!important}
 
-  /* Post form: side-by-side panels → stack */
-  div[style*="display:flex"][style*="gap:\"24px\""]{flex-direction:column!important}
-
   /* Post form grid → single column on mobile */
-  div[style*="1fr 300px"]{grid-template-columns:1fr!important}
+  .postFormWrap{grid-template-columns:1fr!important}
 
   /* Job cards */
   .jcard{padding:14px!important}
@@ -96,8 +93,8 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
   /* Sync bar wraps */
   .syncbar{padding:6px 12px!important}
 
-  /* Post form right panel (my listings) goes below form */
-  div[style*="width:\"300px\""]{width:100%!important;flex-shrink:1!important;order:2!important}
+  /* My Listings panel → full width below form on mobile */
+  .myListingsPanel{width:100%!important;order:2!important}
 
   /* Profile page narrower */
   div[style*="maxWidth:"600px""]{max-width:100%!important}
@@ -990,7 +987,7 @@ function renderForm(){
   );
 
   // Right panel — My Listings with timers
-  const right=div(null,{width:"300px",flexShrink:"0"});
+  const right=div("myListingsPanel",{width:"300px",flexShrink:"0"});
   ap(right,pp(null,{fontSize:"10px",fontWeight:"700",color:"#e8c547",letterSpacing:".12em",marginBottom:"14px"},"MY LISTINGS"));
   if(myJobs.length===0){
     ap(right,div(null,{background:"#111",border:"1px dashed #222",borderRadius:"12px",padding:"28px 16px",textAlign:"center",color:"#333"},pp(null,{fontSize:"28px",marginBottom:"8px"},"📋"),pp(null,{fontSize:"13px"},"No jobs posted yet.")));
@@ -1048,7 +1045,7 @@ function renderForm(){
     },0);
   }
 
-  return div(null,{display:"grid",gridTemplateColumns:"1fr 300px",gap:"28px",alignItems:"start"},left,right);
+  return div("postFormWrap",{display:"grid",gridTemplateColumns:"1fr 300px",gap:"28px",alignItems:"start"},left,right);
 }
 
 function renderCard(){ return el("span"); } // payment removed - posting is free
