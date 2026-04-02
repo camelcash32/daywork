@@ -1,7 +1,7 @@
 {
-  "_readme": "DAYWORK configuration",
+  "_readme": "GoDayWork configuration",
   "resend_api_key": "",
-  "email_from": "DAYWORK <noreply@godaywork.com>",
+  "email_from": "GoDayWork <noreply@godaywork.com>",
   "bulletin_token": "dw-bulletin-admin-2024",
   "stripe_secret_key": "",
   "stripe_publishable_key": "pk_test_YOUR_STRIPE_PUBLISHABLE_KEY_HERE",
