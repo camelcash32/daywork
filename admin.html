@@ -780,26 +780,22 @@ async function processRefund(refundId, action){
 loadRefunds();
 
 // ── PROMO VIDEO ────────────────────────────────────────────────
-let _vidFile = null;
-function vidSelected(input){
+async function vidSelected(input){
   const f = input.files[0];
   if(!f) return;
-  _vidFile = f;
-  const el = document.getElementById('VID-fname');
-  if(el) el.textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB)';
-}
-async function uploadPromoVideo(){
-  if(!_vidFile){ toast('Select a video first','r'); return; }
+  const fname = document.getElementById('VID-fname');
   const prog = document.getElementById('VID-progress');
   const bar = document.getElementById('VID-bar');
   const pct = document.getElementById('VID-pct');
+  if(fname) fname.textContent = f.name + ' (' + (f.size/1024/1024).toFixed(1) + ' MB) — Uploading...';
   if(prog) prog.style.display='block';
+  if(bar) bar.style.width='0%';
   try{
     await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/upload-video');
       xhr.setRequestHeader('x-admin-token', BULLETIN_TOKEN);
-      xhr.setRequestHeader('Content-Type', _vidFile.type || 'video/mp4');
+      xhr.setRequestHeader('Content-Type', f.type || 'video/mp4');
       xhr.upload.onprogress = (e) => {
         if(e.lengthComputable){
           const p = Math.round(e.loaded/e.total*100);
@@ -814,20 +810,22 @@ async function uploadPromoVideo(){
         } catch(e){ reject(e); }
       };
       xhr.onerror = () => reject(new Error('Network error'));
-      xhr.send(_vidFile);
+      xhr.send(f);
     });
     toast('Video uploaded!','g');
-    _vidFile = null;
-    if(prog) prog.style.display='none';
+    if(fname) fname.textContent = f.name + ' — Uploaded!';
+    if(pct) pct.textContent = 'Upload complete!';
     const preview = document.getElementById('VID-preview');
     if(preview){ preview.src = '/promo-video?t='+Date.now(); preview.style.display='block'; }
     const none = document.getElementById('VID-none');
     if(none) none.style.display='none';
   } catch(e){
     toast('Upload failed: '+e.message,'r');
+    if(fname) fname.textContent = 'Upload failed — try again';
     if(prog) prog.style.display='none';
   }
 }
+async function uploadPromoVideo(){ document.getElementById('VID-in').click(); }
 
 </script>
 </body>
