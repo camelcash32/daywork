@@ -250,6 +250,15 @@ if(url === '/.well-known/assetlinks.json') {
   }
 
   if(url === '/') {
+    // If reset token present, serve the app so it can handle the reset flow
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    if(qs.includes('reset=')) {
+      try {
+        res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+        res.end(fs.readFileSync(path.join(__dirname,'index.html')));
+      } catch(e) { res.writeHead(500); res.end('Error'); }
+      return;
+    }
     // Track site visit
     if(!db.visits) db.visits = 0;
     db.visits++;
