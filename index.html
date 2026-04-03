@@ -2753,6 +2753,7 @@ function showSettingsDropdown(anchorEl) {
   }
 
   function toggle(val, onChange) {
+    let current = val;
     const track = div(null, {
       width:'36px', height:'20px', borderRadius:'999px', cursor:'pointer',
       background: val ? '#22c55e' : '#333', transition:'background .2s',
@@ -2765,10 +2766,10 @@ function showSettingsDropdown(anchorEl) {
     });
     ap(track, thumb);
     track.onclick = () => {
-      const nv = !val;
-      track.style.background = nv ? '#22c55e' : '#333';
-      thumb.style.left = nv ? '18px' : '3px';
-      onChange(nv);
+      current = !current;
+      track.style.background = current ? '#22c55e' : '#333';
+      thumb.style.left = current ? '18px' : '3px';
+      onChange(current);
     };
     return track;
   }
