@@ -66,7 +66,20 @@ if (!db.jobs || !db.jobs.length) {
   saveDB();
   console.log('[DEMO] Seeded 5 demo jobs');
 }
-setInterval(()=>{ if(dirty){ saveDB(); dirty=false; } }, 3000);
+setInterval(()=>{ if(dirty){ saveDB(); dirty=false; } }, 1000);
+
+// Save data before Railway shuts down the container
+process.on('SIGTERM', () => {
+  console.log('[SHUTDOWN] SIGTERM received — saving data...');
+  if(dirty) saveDB();
+  saveMod();
+  console.log('[SHUTDOWN] Data saved. Exiting.');
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  if(dirty) saveDB();
+  process.exit(0);
+});
 
 // ── Moderation helpers ────────────────────────────────────────
 function isUserBanned(name) {
@@ -945,6 +958,32 @@ if(url === '/.well-known/assetlinks.json') {
       });
       fs.createReadStream(videoPath).pipe(res);
     }
+    return;
+  }
+
+  // ── UPDATE USER PROFILE ──────────────────────────────────────
+  // POST /update-user  body: {user}
+  if (url === '/update-user' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { user } = JSON.parse(body);
+        if (!user || !user.email) { res.writeHead(400); res.end('Bad request'); return; }
+        if (!db.users) db.users = [];
+        const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+        if (idx >= 0) {
+          db.users[idx] = { ...db.users[idx], ...user };
+        } else {
+          db.users.push(user);
+        }
+        dirty = true;
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
     return;
   }
 

@@ -2630,11 +2630,21 @@ function showSettingsDropdown(anchorEl) {
   ap(picRow, fileInput);
   ap(acct, picRow);
 
+  // Helper to sync user changes to server
+  const syncUser = (updated) => {
+    const users = load('users', MOCK_USERS);
+    const newUsers = users.map(u => u.email === updated.email ? {...u, ...updated} : u);
+    try { localStorage.setItem('dw_users', JSON.stringify(newUsers)); } catch(e) {}
+    fetch(location.protocol+'//'+location.host+'/update-user', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user:updated})}).catch(()=>{});
+    wsSend('users', newUsers);
+  };
+
   // Name
   ap(acct, inputRow('✏️', 'Display Name', U.name, 'text', v => {
     if(!v) return;
     U = {...U, name:v};
     save('currentUser', U);
+    syncUser(U);
     showToast('✅ Name updated!');
     rerender();
   }));
@@ -2644,6 +2654,7 @@ function showSettingsDropdown(anchorEl) {
     if(!v) return;
     U = {...U, email:v};
     save('currentUser', U);
+    syncUser(U);
     showToast('✅ Email updated!');
   }));
 
