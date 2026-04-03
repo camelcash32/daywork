@@ -41,11 +41,28 @@ function loadMod() {
     autoFlag:    true,
   };
 }
-function saveDB()  { try { fs.writeFileSync(DATA_FILE, JSON.stringify(db,null,2)); } catch(e){} }
-function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2)); } catch(e){} }
+function saveDB()  {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(db,null,2));
+    console.log('[SAVE] data.json written — jobs:'+db.jobs.length+' bulletin:'+(db.bulletin||[]).length+' users:'+(db.users||[]).length);
+  } catch(e){ console.error('[SAVE] FAILED to write data.json:', e.message); }
+}
+function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2)); } catch(e){ console.error('[SAVE] FAILED to write mod.json:', e.message); } }
 
 let db  = loadDB();
 let mod = loadMod();
+
+// ── Startup diagnostics ───────────────────────────────────────
+console.log('[STARTUP] DATA_DIR:', DATA_DIR);
+console.log('[STARTUP] DATA_FILE:', DATA_FILE);
+console.log('[STARTUP] data.json exists:', fs.existsSync(DATA_FILE));
+if (fs.existsSync(DATA_FILE)) {
+  const stat = fs.statSync(DATA_FILE);
+  console.log('[STARTUP] data.json size:', stat.size, 'bytes');
+}
+console.log('[STARTUP] Loaded — jobs:', (db.jobs||[]).length, '| bulletin:', (db.bulletin||[]).length, '| users:', (db.users||[]).length);
+const videoPath = require('path').join(DATA_DIR, 'promo-video.mp4');
+console.log('[STARTUP] promo-video.mp4 exists:', fs.existsSync(videoPath));
 let dirty = false;
 
 // Ensure totalSignups is at least the number of known users (fixes zero counter after retroactive deploy)
