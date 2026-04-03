@@ -1093,7 +1093,7 @@ if(url === '/.well-known/assetlinks.json') {
               const sent = await notify2.sendEmail(email, subject, html);
               console.log('[RESET] Email send result:', sent);
             } else {
-              console.log('[RESET] No notify — reset URL:', resetUrl);
+              console.log('[RESET] No notify configured — email not sent');
             }
           } else {
             console.log('[RESET] No user found, skipping email');

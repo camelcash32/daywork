@@ -18,7 +18,6 @@ function loadConfig() {
 // ── Send email via Resend API ─────────────────────────────────
 async function sendEmail(to, subject, html) {
   const config = loadConfig();
-  console.log('[NOTIFY] Key starts with:', config.resend_api_key ? config.resend_api_key.substring(0,10)+'...' : 'EMPTY', '| length:', config.resend_api_key ? config.resend_api_key.length : 0);
   if (!config.resend_api_key) {
     console.log('[NOTIFY] Resend not configured — skipping email to', to);
     return false;
