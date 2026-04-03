@@ -29,7 +29,7 @@ try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e) {}
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
   try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
-  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], payments:[], refundRequests:[] };
+  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], workers:[], payments:[], refundRequests:[] };
 }
 function loadMod() {
   try { if (fs.existsSync(MOD_FILE)) return JSON.parse(fs.readFileSync(MOD_FILE,'utf8')); } catch(e){}
@@ -1163,6 +1163,7 @@ wss.on('connection', (ws, req) => {
   // Ensure users are included in init
     if(!db.users) db.users = [];
     if(!db.bulletin) db.bulletin = [];
+    if(!db.workers) db.workers = [];
     ws.send(JSON.stringify({ type:'init', db, mod: safeModData() }));
 
   ws.on('message', (raw) => {
@@ -1226,6 +1227,11 @@ wss.on('connection', (ws, req) => {
           const newCount = msg.val.filter(u=>u.name && !existingNames.has(u.name)).length;
           if(newCount > 0) db.totalSignups = (db.totalSignups||0) + newCount;
           db.users = msg.val;
+          dirty = true;
+        }
+        else if(msg.key === 'workers' && Array.isArray(msg.val)) {
+          const now = Date.now();
+          db.workers = msg.val.filter(p => !p.expiresAt || p.expiresAt > now);
           dirty = true;
         }
         else if(msg.key === 'reports') {

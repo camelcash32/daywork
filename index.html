@@ -42,6 +42,7 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
 .toggle-opt{padding:5px 16px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;border:none;font-family:inherit}
 .toggle-opt.active-poster{background:#e8c547;color:#0f0f0f}
 .toggle-opt.active-seeker{background:#a78bfa;color:#fff}
+.toggle-opt.active-workers{background:#22c55e;color:#0f0f0f}
 .toggle-opt.inactive{background:none;color:#555}
 /* Blink animation for applicants tab */
 @keyframes blink-red{0%,100%{color:#ef4444;background:rgba(239,68,68,.2);box-shadow:0 0 8px #ef4444}50%{color:#fff;background:rgba(239,68,68,.5);box-shadow:0 0 16px #ef4444,0 0 30px #ef4444}}
@@ -879,6 +880,7 @@ function pruneExpired(){return pruneExpiredJobs(jobs||[]);}
 let ratings=load("ratings",INITIAL_RATINGS);
 let formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
 let bulletinPosts=[];
+let workerPosts=[];
 let editId=null, cardOpen=false; // cardOpen unused - free posting
 let cardS={number:"",expiry:"",cvv:"",name:""};
 let timerInterval=null;
@@ -914,7 +916,8 @@ function renderApp(){
   // Toggle switch
   const pOpt=btn("toggle-opt"+(mode==="poster"?" active-poster":" inactive"),{},()=>{mode="poster";save("userMode","poster");tab="post";rerender();},"🏢 Hire Help");
   const sOpt=btn("toggle-opt"+(mode==="seeker"?" active-seeker":" inactive"),{},()=>{mode="seeker";save("userMode","seeker");rerender();},"🔍 Find Jobs");
-  const tog=ap(div("toggle-wrap",{}),pOpt,sOpt);
+  const wOpt=btn("toggle-opt"+(mode==="workers"?" active-workers":" inactive"),{},()=>{mode="workers";save("userMode","workers");rerender();},"✋ Workers Available");
+  const tog=ap(div("toggle-wrap",{}),pOpt,sOpt,wOpt);
   // Poster-mode nav tabs
   const navPost=btn("nav"+(tab==="post"?" on":""),{},()=>{tab="post";rerender();},"📋 Post Job");
   const navApps=btn("nav"+(tab==="applicants"?" on":"")+(pend>0?" blink-alert":""),{},()=>{tab="applicants";rerender();},"👥 Applicants"+(pend>0?" ("+pend+")":""));
@@ -944,6 +947,7 @@ function renderApp(){
     bellBtn,feedBtn,tog,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}),nameBtn);
   const mainContent=div(null,{flex:"1",minWidth:"0",padding:"28px 20px"});
   if(mode==="poster"){if(tab==="post")ap(mainContent,renderForm());if(tab==="applicants")ap(mainContent,renderApplicants());}
+  else if(mode==="workers"){ap(mainContent,renderWorkersAvailable());}
   else{if(viewingProfile)ap(mainContent,renderProfile(viewingProfile));else if(selJob)ap(mainContent,renderDetail());else ap(mainContent,renderBrowse());}
   return div(null,{width:"100%",minHeight:"100vh"},
     ap(div("syncbar",{}),ap(el("span",null,{fontWeight:"700"},{"data-connstatus":"1","id":"_connbadge"}),"🟡 Connecting…"),ap(el("span",null,{color:"#444"})," · "+location.host),
@@ -1596,6 +1600,177 @@ function filterByRadius(jobList, userZip, miles, cb){
       cb(filtered);
     });
   });
+}
+
+function renderWorkersAvailable(){
+  const w=div(null,{display:"flex",gap:"24px",alignItems:"flex-start",flexWrap:"wrap"});
+
+  // ── LEFT: Post form (workers only) ──────────────────────────
+  const formCol=div(null,{flex:"0 0 300px",minWidth:"260px"});
+  const formCard=div(null,{background:"#161616",border:"1px solid #252525",borderRadius:"14px",padding:"20px",marginBottom:"16px"});
+  ap(formCard,pp(null,{fontSize:"10px",fontWeight:"700",letterSpacing:".15em",color:"#22c55e",marginBottom:"12px"},"POST YOUR AVAILABILITY"));
+  ap(formCard,pp(null,{fontSize:"12px",color:"#555",marginBottom:"10px",lineHeight:"1.5"},"Let hirers know you're ready to work. They'll send you an offer — you decide to accept or decline."));
+  ap(formCard,ap(div(null,{background:"rgba(34,197,94,.05)",border:"1px solid rgba(34,197,94,.15)",borderRadius:"8px",padding:"8px 12px",marginBottom:"14px"}),pp(null,{fontSize:"12px",color:"#888"},"⏱ Posts expire after ",ap(el("span",null,{color:"#22c55e",fontWeight:"700"}),"24 hours"))));
+
+  const titleIn=el("input",null,{width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"9px 12px",color:"#f0ede8",fontSize:"14px",fontFamily:"inherit",outline:"none"});
+  titleIn.placeholder="What can you do? (e.g. Yard Work, Moving)";
+
+  const zipIn=el("input",null,{width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"9px 12px",color:"#f0ede8",fontSize:"14px",fontFamily:"inherit",outline:"none"});
+  zipIn.placeholder="Your ZIP code";
+
+  const availSel=el("select",null,{width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"9px 12px",color:"#f0ede8",fontSize:"14px",fontFamily:"inherit",outline:"none"});
+  ["Available Today","Available This Week","Weekends Only","Flexible"].forEach(o=>{const opt=document.createElement("option");opt.value=o;opt.textContent=o;availSel.appendChild(opt);});
+
+  const descIn=el("textarea",null,{width:"100%",background:"#111",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"9px 12px",color:"#f0ede8",fontSize:"13px",fontFamily:"inherit",outline:"none",resize:"vertical",minHeight:"80px"});
+  descIn.placeholder="Describe your skills and experience...";
+
+  function fld(lbl,inp){
+    const f=div(null,{marginBottom:"12px"});
+    ap(f,pp(null,{fontSize:"10px",fontWeight:"700",letterSpacing:".12em",color:"#555",marginBottom:"5px"},lbl));
+    ap(f,inp);
+    return f;
+  }
+  ap(formCard,fld("WHAT CAN YOU DO?",titleIn),fld("ZIP CODE",zipIn),fld("AVAILABILITY",availSel),fld("ABOUT YOU",descIn));
+
+  const postBtn=btn("btn btn-g",{width:"100%",marginTop:"4px",background:"#22c55e",color:"#0f0f0f",fontWeight:"700"},()=>{
+    const title=titleIn.value.trim();
+    const zip=zipIn.value.trim();
+    const desc=descIn.value.trim();
+    if(!title){showToast("Add what you can do");return;}
+    const post={id:Date.now(),name:U.name,skills:title,zip:zip||"—",avail:availSel.value,desc,postedAt:Date.now(),expiresAt:Date.now()+86400000,offers:[],status:"available"};
+    workerPosts.unshift(post);
+    wsSend("workers",workerPosts);
+    titleIn.value="";zipIn.value="";descIn.value="";
+    showToast("✅ Availability posted!");
+    rerender();
+  },"Post Availability →");
+  ap(formCard,postBtn);
+  ap(formCol,formCard);
+
+  // Show my own posts with delete
+  const myPosts=workerPosts.filter(p=>p.name===U.name);
+  if(myPosts.length){
+    const myCard=div(null,{background:"#161616",border:"1px solid #252525",borderRadius:"14px",padding:"16px"});
+    ap(myCard,pp(null,{fontSize:"10px",fontWeight:"700",letterSpacing:".15em",color:"#555",marginBottom:"10px"},"MY POSTS"));
+    myPosts.forEach(p=>{
+      const row=div(null,{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1e1e1e"});
+      ap(row,pp(null,{fontSize:"13px",fontWeight:"600"},p.skills));
+      const del=btn(null,{background:"none",border:"none",color:"#ef4444",fontSize:"12px",cursor:"pointer",fontFamily:"inherit"},()=>{
+        if(!confirm("Remove this listing?"))return;
+        workerPosts=workerPosts.filter(x=>x.id!==p.id);
+        wsSend("workers",workerPosts);
+        rerender();
+      },"✕ Remove");
+      ap(row,del);ap(myCard,row);
+    });
+    ap(formCol,myCard);
+  }
+  ap(w,formCol);
+
+  // ── RIGHT: Feed ──────────────────────────────────────────────
+  const feedCol=div(null,{flex:"1",minWidth:"0"});
+  ap(feedCol,pp(null,{fontSize:"10px",fontWeight:"700",letterSpacing:".15em",color:"#555",marginBottom:"14px"},"AVAILABLE WORKERS"));
+
+  const others=workerPosts.filter(p=>p.name!==U.name);
+  if(!others.length){
+    ap(feedCol,pp(null,{fontSize:"14px",color:"#444",textAlign:"center",padding:"60px 0"},"No workers posted yet — be the first!"));
+  } else {
+    others.forEach(p=>{
+      const card=div(null,{background:"#161616",border:"1px solid #252525",borderRadius:"14px",padding:"18px",marginBottom:"14px",borderLeft:"3px solid #22c55e"});
+      // Header
+      const top=div(null,{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"6px"});
+      ap(top,pp(null,{fontSize:"16px",fontWeight:"700"},p.name));
+      const badge=pp(null,{fontSize:"10px",fontWeight:"700",padding:"3px 10px",borderRadius:"20px",background:"rgba(34,197,94,.12)",color:"#22c55e"},p.status==="matched"?"✅ MATCHED":"🟢 "+p.avail.toUpperCase());
+      ap(top,badge);ap(card,top);
+      ap(card,pp(null,{fontSize:"14px",color:"#aaa",marginBottom:"4px"},p.skills));
+      if(p.desc)ap(card,pp(null,{fontSize:"13px",color:"#666",lineHeight:"1.5",marginBottom:"10px"},p.desc));
+      const meta=div(null,{display:"flex",gap:"8px",flexWrap:"wrap",marginBottom:"14px"});
+      ap(meta,pp(null,{fontSize:"11px",background:"#1e1e1e",border:"1px solid rgba(34,197,94,.25)",borderRadius:"6px",padding:"3px 9px",color:"#22c55e"},"🟢 "+p.avail));
+      ap(meta,pp(null,{fontSize:"11px",background:"#1e1e1e",border:"1px solid #2a2a2a",borderRadius:"6px",padding:"3px 9px",color:"#aaa"},"📍 "+p.zip));
+      ap(card,meta);
+
+      // My pending offer
+      const myOffer=p.offers&&p.offers.find(o=>o.hirerName===U.name&&o.status==="pending");
+      const myAccepted=p.offers&&p.offers.find(o=>o.hirerName===U.name&&o.status==="accepted");
+
+      if(myAccepted||p.status==="matched"&&myAccepted){
+        const box=div(null,{background:"rgba(232,197,71,.06)",border:"1px solid rgba(232,197,71,.2)",borderRadius:"10px",padding:"14px",textAlign:"center"});
+        ap(box,pp(null,{fontSize:"14px",fontWeight:"700",color:"#e8c547",marginBottom:"4px"},"✅ Matched — "+myAccepted.amount));
+        ap(box,pp(null,{fontSize:"12px",color:"#555",marginBottom:"10px"},"Offer accepted. Chat is now open."));
+        const chatBtn=btn("btn btn-g",{width:"auto",padding:"8px 20px",fontSize:"13px"},()=>{
+          // open chat for this match using a worker_ prefix key
+          const chatKey="worker_"+p.id;
+          selJob={id:chatKey,title:p.skills+" (Worker Match)",postedBy:p.name,workerChatMode:true,chatKey};
+          mode="seeker";save("userMode","seeker");
+          rerender();
+        },"💬 Open Chat");
+        ap(box,chatBtn);ap(card,box);
+      } else if(myOffer){
+        ap(card,pp(null,{fontSize:"12px",color:"#666",textAlign:"center",padding:"10px",background:"#0f0f0f",borderRadius:"8px",border:"1px solid #2a2a2a"},"⏳ Offer of "+myOffer.amount+" sent — waiting for "+p.name+" to respond"));
+      } else if(p.status!=="matched"){
+        // Offer input
+        const offerWrap=div(null,{});
+        const offerVisible={open:false};
+        const makeBtn=btn(null,{width:"100%",padding:"10px",borderRadius:"8px",border:"1px solid #22c55e",background:"transparent",color:"#22c55e",fontWeight:"700",fontSize:"13px",cursor:"pointer",fontFamily:"inherit"},()=>{
+          offerVisible.open=!offerVisible.open;
+          offerArea.style.display=offerVisible.open?"block":"none";
+        },"💰 Make an Offer");
+        const offerArea=div(null,{display:"none",marginTop:"10px",background:"#0f0f0f",border:"1px solid #2a2a2a",borderRadius:"10px",padding:"14px"});
+        ap(offerArea,pp(null,{fontSize:"11px",color:"#555",marginBottom:"8px"},"Enter your offer for "+p.name+":"));
+        const inputRow=div(null,{display:"flex",gap:"8px"});
+        ap(inputRow,pp(null,{fontSize:"18px",lineHeight:"36px",color:"#aaa",padding:"0 2px"},"$"));
+        const amtIn=el("input",null,{flex:"1",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"8px 12px",color:"#f0ede8",fontSize:"14px",fontFamily:"inherit",outline:"none"});
+        amtIn.type="number";amtIn.min="1";amtIn.max="500";amtIn.placeholder="e.g. 60";
+        const sendBtn=btn(null,{padding:"8px 16px",background:"#22c55e",color:"#0f0f0f",border:"none",borderRadius:"8px",fontWeight:"700",fontSize:"13px",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"},()=>{
+          const amt=parseFloat(amtIn.value);
+          if(!amt||amt<=0){showToast("Enter a valid amount");return;}
+          const offer={id:Date.now(),hirerName:U.name,amount:"$"+amt.toFixed(2),status:"pending"};
+          p.offers=p.offers||[];p.offers.push(offer);
+          wsSend("workers",workerPosts);
+          showToast("✅ Offer sent to "+p.name+"!");
+          rerender();
+        },"Send Offer");
+        ap(inputRow,amtIn,sendBtn);ap(offerArea,inputRow);
+        ap(offerWrap,makeBtn,offerArea);ap(card,offerWrap);
+      }
+      ap(feedCol,card);
+    });
+  }
+
+  // ── My incoming offers (as worker) ──────────────────────────
+  const myAvailPosts=workerPosts.filter(p=>p.name===U.name&&p.offers&&p.offers.some(o=>o.status==="pending"));
+  if(myAvailPosts.length){
+    const offersCard=div(null,{background:"#161616",border:"1px solid rgba(34,197,94,.25)",borderRadius:"14px",padding:"18px",marginTop:"16px"});
+    ap(offersCard,pp(null,{fontSize:"10px",fontWeight:"700",letterSpacing:".15em",color:"#22c55e",marginBottom:"12px"},"💰 OFFERS RECEIVED"));
+    myAvailPosts.forEach(post=>{
+      post.offers.filter(o=>o.status==="pending").forEach(offer=>{
+        const row=div(null,{background:"#0f0f0f",borderRadius:"10px",padding:"14px",marginBottom:"10px",border:"1px solid #2a2a2a"});
+        ap(row,pp(null,{fontSize:"13px",color:"#aaa",marginBottom:"4px"},offer.hirerName+" wants to hire you for: "+post.skills));
+        ap(row,pp(null,{fontSize:"22px",fontWeight:"900",color:"#22c55e",marginBottom:"10px"},offer.amount));
+        const btns=div(null,{display:"flex",gap:"8px"});
+        const acc=btn("btn btn-g",{flex:"1",fontSize:"13px",padding:"9px",background:"#22c55e",color:"#0f0f0f"},()=>{
+          offer.status="accepted";
+          post.status="matched";
+          // close other pending offers
+          post.offers.filter(o=>o.id!==offer.id&&o.status==="pending").forEach(o=>o.status="rejected");
+          wsSend("workers",workerPosts);
+          showToast("✅ Offer accepted! Chat is now open.");
+          rerender();
+        },"✓ Accept");
+        const dec=btn("btn btn-d",{flex:"1",fontSize:"13px",padding:"9px",color:"#ef4444",border:"1px solid #ef4444",background:"transparent"},()=>{
+          offer.status="rejected";
+          wsSend("workers",workerPosts);
+          showToast("Offer declined.");
+          rerender();
+        },"✕ Decline");
+        ap(btns,acc,dec);ap(row,btns);ap(offersCard,row);
+      });
+    });
+    ap(feedCol,offersCard);
+  }
+
+  ap(w,feedCol);
+  return w;
 }
 
 function renderBrowse(){
@@ -2286,6 +2461,7 @@ function wsConnect(){
           if(msg.db.chats && typeof msg.db.chats==='object')
             Object.assign(_chatCache, msg.db.chats);
           if(Array.isArray(msg.db.bulletin)) bulletinPosts = msg.db.bulletin;
+          if(Array.isArray(msg.db.workers)) workerPosts = msg.db.workers.filter(p=>!p.expiresAt||p.expiresAt>Date.now());
           console.log('[WS] init: '+jobs.length+' jobs loaded');
           rerender();
           _showConn(true);
@@ -2313,6 +2489,9 @@ function wsConnect(){
             }catch(e){}
           } else if(msg.key==='bulletin' && Array.isArray(msg.val)){
             bulletinPosts = msg.val;
+            rerender();
+          } else if(msg.key==='workers' && Array.isArray(msg.val)){
+            workerPosts = msg.val.filter(p=>!p.expiresAt||p.expiresAt>Date.now());
             rerender();
           } else if(msg.key && msg.key.startsWith('chat_')){
             onChatWSUpdate(msg.key, msg.val);
@@ -3111,6 +3290,7 @@ function showToS(onAccept){
     ['Reporting & Abuse','The report system is for genuine violations only. Filing false, malicious, or repeated reports against other users is a violation of these terms and may result in a permanent ban of your account. Users found to be abusing the report system will be removed from the platform.'],
     ['Account Bans','GoDayWork reserves the right to suspend or permanently ban any account that violates these terms, engages in fraud, harassment, or abuse, or is flagged by multiple users. Banned users may not create new accounts.'],
     ['Privacy','Your name, ZIP code, and ratings are visible to other users. Your email and phone are never shared without your consent.'],
+    ['Workers Available','Workers may post their availability on the Workers Available page. Hirers can send price offers to available workers. Accepting an offer opens a chat to coordinate the job. GoDayWork does not guarantee any match will result in completed work or payment.'],
     ['Age Requirement','You must be 18 or older to use GoDayWork.'],
     ['Changes','We may update these terms at any time. Continued use means you accept the updated terms.'],
   ];
