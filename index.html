@@ -2263,8 +2263,17 @@ function wsConnect(){
         if(msg.type==='init' && msg.db){
           // Full DB from server on first connect
           if(Array.isArray(msg.db.users) && msg.db.users.length){
-            // Store server users in localStorage so load('users') finds them
-            try{localStorage.setItem('dw_users', JSON.stringify(msg.db.users));}catch(e){}
+            // Merge server users with local users — never remove a local user
+            try{
+              const localUsers = JSON.parse(localStorage.getItem('dw_users')||'[]');
+              const merged = [...localUsers];
+              msg.db.users.forEach(su => {
+                const idx = merged.findIndex(lu => lu.email === su.email);
+                if(idx >= 0) merged[idx] = {...merged[idx], ...su};
+                else merged.push(su);
+              });
+              localStorage.setItem('dw_users', JSON.stringify(merged));
+            }catch(e){}
           }
           if(Array.isArray(msg.db.jobs)){
             const incoming = msg.db.jobs.length > 0 ? msg.db.jobs : SAMPLE_JOBS;
@@ -2290,7 +2299,17 @@ function wsConnect(){
             ratings = msg.val;
             rerender();
           } else if(msg.key==='users' && Array.isArray(msg.val)){
-            try{localStorage.setItem('dw_users', JSON.stringify(msg.val));}catch(e){}
+            // Merge server users with local — never wipe local accounts
+            try{
+              const localUsers = JSON.parse(localStorage.getItem('dw_users')||'[]');
+              const merged = [...localUsers];
+              msg.val.forEach(su => {
+                const idx = merged.findIndex(lu => lu.email === su.email);
+                if(idx >= 0) merged[idx] = {...merged[idx], ...su};
+                else merged.push(su);
+              });
+              localStorage.setItem('dw_users', JSON.stringify(merged));
+            }catch(e){}
           } else if(msg.key==='bulletin' && Array.isArray(msg.val)){
             bulletinPosts = msg.val;
             rerender();
