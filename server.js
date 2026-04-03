@@ -889,6 +889,58 @@ if(url === '/.well-known/assetlinks.json') {
     res.end(); return;
   }
 
+  // ── PROMO VIDEO UPLOAD ───────────────────────────────────────
+  // POST /upload-video  — raw binary body, Content-Type: video/mp4
+  if (url === '/upload-video' && req.method === 'POST') {
+    const token = req.headers['x-admin-token'];
+    const cfg = getCfg();
+    if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
+    const chunks = [];
+    req.on('data', d => chunks.push(d));
+    req.on('end', () => {
+      try {
+        const buf = Buffer.concat(chunks);
+        const videoPath = path.join(DATA_DIR, 'promo-video.mp4');
+        fs.writeFileSync(videoPath, buf);
+        console.log('[VIDEO] Promo video uploaded, size:', buf.length, 'bytes');
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true, size: buf.length }));
+      } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    });
+    return;
+  }
+
+  // GET /promo-video — serve with range support for video seeking
+  if (url.startsWith('/promo-video') && req.method === 'GET') {
+    const videoPath = path.join(DATA_DIR, 'promo-video.mp4');
+    if (!fs.existsSync(videoPath)) { res.writeHead(404); res.end('No video'); return; }
+    const stat = fs.statSync(videoPath);
+    const total = stat.size;
+    const range = req.headers['range'];
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': (end - start) + 1,
+        'Content-Type': 'video/mp4',
+        'Cache-Control': 'no-cache',
+      });
+      fs.createReadStream(videoPath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': total,
+        'Content-Type': 'video/mp4',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache',
+      });
+      fs.createReadStream(videoPath).pipe(res);
+    }
+    return;
+  }
+
   // ── REGISTER USER (called on signup to ensure server has the account) ───
   // POST /register-user  body: {id, email, name, password, ...}
   if (url === '/register-user' && req.method === 'POST') {
