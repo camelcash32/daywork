@@ -23,6 +23,9 @@ const DATA_DIR  = process.env.DATA_DIR || __dirname;
 const DATA_FILE = path.join(DATA_DIR, 'data.json');
 const MOD_FILE  = path.join(DATA_DIR, 'moderation.json');
 
+// Ensure data directory exists before any reads/writes
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e) {}
+
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
   try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
