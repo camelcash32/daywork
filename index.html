@@ -2414,6 +2414,11 @@ function wsConnect(){
         const msg = JSON.parse(e.data);
         console.log('[WS] received type='+msg.type+' key='+(msg.key||''));
 
+        if(msg.type==='toast'){
+          showToast(msg.message||'');
+          rerender();
+          return;
+        }
         if(msg.type==='banned'){
           // Server banned this user
           U=null; save('currentUser',null);

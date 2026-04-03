@@ -396,6 +396,11 @@ if(url === '/.well-known/assetlinks.json') {
           res.writeHead(400); res.end('Bad request');
           return;
         }
+        if (containsBadWords(msg.text||'')) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Message contains prohibited content.' }));
+          return;
+        }
         if (!db.chats[key]) db.chats[key] = [];
         db.chats[key].push(msg);
         saveDB(); // save immediately
@@ -558,6 +563,7 @@ if(url === '/.well-known/assetlinks.json') {
         }
         const { content, fontSize, color, image, pinned } = JSON.parse(body);
         if (!content) { res.writeHead(400); res.end('Content required'); return; }
+        if (containsBadWords(content)) { res.writeHead(400); res.end('Content contains prohibited words.'); return; }
         if (!db.bulletin) db.bulletin = [];
         const post = { id: Date.now(), content, fontSize: fontSize||'14', color: color||'#e8e6f0', image: image||null, pinned: !!pinned, date: new Date().toISOString() };
         if (pinned) db.bulletin.unshift(post); else db.bulletin.push(post);
@@ -1199,14 +1205,24 @@ wss.on('connection', (ws, req) => {
         }
 
         if(msg.key === 'jobs' && Array.isArray(msg.val)) {
-          // Auto-flag new jobs with bad words
-          msg.val = msg.val.map(job => {
-            if(shouldAutoFlag(job) && !mod.flaggedJobs.includes(job.id)) {
-              mod.flaggedJobs.push(job.id);
-              modLog('auto-flag', `Job "${job.title}" auto-flagged`, 'system');
-              saveMod();
+          // Block jobs with banned words, auto-flag borderline ones
+          const oldIds = new Set((db.jobs||[]).map(j=>j.id));
+          msg.val = msg.val.filter(job => {
+            if(!oldIds.has(job.id)) {
+              // New job — check for banned words
+              const text = (job.title||'')+' '+(job.description||'');
+              if(containsBadWords(text)) {
+                modLog('blocked', `Job "${job.title}" blocked by word filter`, 'system');
+                ws.send(JSON.stringify({type:'toast',message:'⛔ Job blocked: contains prohibited content.'}));
+                return false; // drop it
+              }
+              if(shouldAutoFlag(job) && !mod.flaggedJobs.includes(job.id)) {
+                mod.flaggedJobs.push(job.id);
+                modLog('auto-flag', `Job "${job.title}" auto-flagged`, 'system');
+                saveMod();
+              }
             }
-            return job;
+            return true;
           });
           // Detect newly posted jobs and notify all seekers
           if (notify && db.jobs && Array.isArray(db.jobs)) {
@@ -1231,7 +1247,19 @@ wss.on('connection', (ws, req) => {
         }
         else if(msg.key === 'workers' && Array.isArray(msg.val)) {
           const now = Date.now();
-          db.workers = msg.val.filter(p => !p.expiresAt || p.expiresAt > now);
+          const oldWorkerIds = new Set((db.workers||[]).map(p=>p.id));
+          db.workers = msg.val.filter(p => {
+            if(!p.expiresAt || p.expiresAt <= now) return false;
+            if(!oldWorkerIds.has(p.id)) {
+              const text = (p.skills||'')+' '+(p.desc||'');
+              if(containsBadWords(text)) {
+                modLog('blocked', `Worker post by "${p.name}" blocked by word filter`, 'system');
+                ws.send(JSON.stringify({type:'toast',message:'⛔ Post blocked: contains prohibited content.'}));
+                return false;
+              }
+            }
+            return true;
+          });
           dirty = true;
         }
         else if(msg.key === 'reports') {
