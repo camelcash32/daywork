@@ -3,6 +3,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN mkdir -p /var/data
+RUN mkdir -p /data
 EXPOSE 8080
 CMD ["node", "server.js"]
