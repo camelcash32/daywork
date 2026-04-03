@@ -29,7 +29,7 @@ try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e) {}
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
   try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
-  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], workers:[], payments:[], refundRequests:[] };
+  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], workers:[], payments:[], refundRequests:[], digestQueue:{} };
 }
 function loadMod() {
   try { if (fs.existsSync(MOD_FILE)) return JSON.parse(fs.readFileSync(MOD_FILE,'utf8')); } catch(e){}
@@ -149,41 +149,99 @@ function safeModData() {
 // ── JOB NOTIFICATION TO SEEKERS ──────────────────────────────
 async function notifySeekersNewJob(job) {
   if (!notify) return;
-  // Get all registered users with email
   const users = db.users || [];
-  const seekers = users.filter(u => u.email && u.emailVerified !== false);
-  if (!seekers.length) {
-    console.log('[NOTIFY] No seekers to notify');
-    return;
-  }
-  const subject = `⚡ GoDayWork: New job near you — "${job.title}"`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
-      <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
-      <h3 style="margin-bottom:16px">A new job was just posted!</h3>
-      <div style="background:#1a1a1a;border-radius:10px;padding:16px;margin-bottom:16px">
-        <p style="font-weight:700;font-size:18px;margin-bottom:8px">${job.title}</p>
-        <p style="color:#aaa;margin-bottom:4px">📍 ${job.location || job.zip}</p>
-        <p style="color:#aaa;margin-bottom:4px">💰 ${job.pay}</p>
-        <p style="color:#aaa;margin-bottom:4px">📅 ${job.date}</p>
-        ${job.description ? `<p style="color:#888;font-size:13px;margin-top:8px">${job.description.slice(0,150)}${job.description.length>150?'...':''}</p>` : ''}
-      </div>
-      <p style="color:#555;font-size:13px;margin-bottom:16px">Log in to GoDayWork to apply before it fills up. Jobs expire in 24 hours!</p>
-      <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">View Job →</a>
-      <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this because you have a GoDayWork account. Log in to manage your notification settings.</p>
-    </div>`;
+  const seekers = users.filter(u => u.email && u.emailVerified !== false && u.emailAlerts !== false);
+  if (!seekers.length) return;
 
-  let sent = 0;
+  const jobCat = (job.category || '').toLowerCase();
+  const jobTitle = (job.title || '').toLowerCase();
+  const jobDesc = (job.description || '').toLowerCase();
+
+  const instantList = [];
+  const digestList = [];
+
   for (const user of seekers) {
-    try {
-      await notify.sendEmail(user.email, subject, html);
-      sent++;
-    } catch(e) {
-      console.error(`[NOTIFY] Failed to email ${user.email}:`, e.message);
-    }
+    const userCats = (user.notifyCategories || []).map(c => c.toLowerCase());
+    const userCustom = (user.notifyCustomCategories || []).map(c => c.toLowerCase());
+    const hasPrefs = userCats.length > 0 || userCustom.length > 0;
+
+    let matches = !hasPrefs; // no prefs = notify on everything (backwards compat)
+    if (!matches && userCats.some(c => c === jobCat)) matches = true;
+    if (!matches && userCustom.some(k => jobTitle.includes(k) || jobDesc.includes(k))) matches = true;
+    if (!matches) continue;
+
+    if (user.notifyFrequency === 'daily') digestList.push(user);
+    else instantList.push(user);
   }
-  console.log(`[NOTIFY] Job notification sent to ${sent}/${seekers.length} seekers`);
+
+  // Instant emails
+  if (instantList.length) {
+    const subject = `⚡ GoDayWork: New ${job.category||'job'} — "${job.title}"`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
+        <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
+        <h3 style="margin-bottom:16px">A new ${job.category||'job'} was just posted!</h3>
+        <div style="background:#1a1a1a;border-radius:10px;padding:16px;margin-bottom:16px">
+          <p style="font-weight:700;font-size:18px;margin-bottom:8px">${job.title}</p>
+          <p style="color:#aaa;margin-bottom:4px">📍 ${job.location || job.zip}</p>
+          <p style="color:#aaa;margin-bottom:4px">💰 ${job.pay}</p>
+          <p style="color:#aaa;margin-bottom:4px">📅 ${job.date}</p>
+          ${job.description ? `<p style="color:#888;font-size:13px;margin-top:8px">${job.description.slice(0,150)}${job.description.length>150?'...':''}</p>` : ''}
+        </div>
+        <p style="color:#555;font-size:13px;margin-bottom:16px">Log in to apply before it fills up. Jobs expire in 24 hours!</p>
+        <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">View Job →</a>
+        <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this because you have a GoDayWork account. Update notification settings in the app.</p>
+      </div>`;
+    let sent = 0;
+    for (const user of instantList) {
+      try { await notify.sendEmail(user.email, subject, html); sent++; }
+      catch(e) { console.error(`[NOTIFY] Failed to email ${user.email}:`, e.message); }
+    }
+    console.log(`[NOTIFY] Instant alerts sent to ${sent}/${instantList.length} seekers for "${job.title}"`);
+  }
+
+  // Queue for daily digest
+  if (digestList.length) {
+    if (!db.digestQueue) db.digestQueue = {};
+    for (const user of digestList) {
+      if (!db.digestQueue[user.email]) db.digestQueue[user.email] = [];
+      db.digestQueue[user.email].push({
+        title: job.title, category: job.category,
+        location: job.location || job.zip, pay: job.pay, date: job.date
+      });
+    }
+    saveDB();
+  }
 }
+
+async function sendDailyDigest() {
+  if (!notify || !db.digestQueue) return;
+  const queue = db.digestQueue;
+  db.digestQueue = {};
+  saveDB();
+  for (const [email, jobs] of Object.entries(queue)) {
+    if (!jobs.length) continue;
+    const subject = `⚡ GoDayWork: ${jobs.length} new job${jobs.length>1?'s':''} for you today`;
+    const jobsHtml = jobs.map(j => `
+      <div style="background:#1a1a1a;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+        <p style="font-weight:700;font-size:15px;margin-bottom:4px">${j.title}</p>
+        <p style="color:#aaa;font-size:12px">📍 ${j.location} &nbsp;·&nbsp; 💰 ${j.pay} &nbsp;·&nbsp; 📅 ${j.date}</p>
+      </div>`).join('');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
+        <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork Daily Digest</h2>
+        <p style="color:#888;margin-bottom:16px">${jobs.length} new job${jobs.length>1?'s':''} posted in your selected categories:</p>
+        ${jobsHtml}
+        <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:8px">Browse All Jobs →</a>
+        <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this daily digest from GoDayWork. Update notification settings in the app.</p>
+      </div>`;
+    try { await notify.sendEmail(email, subject, html); console.log(`[DIGEST] Sent to ${email} (${jobs.length} jobs)`); }
+    catch(e) { console.error(`[DIGEST] Failed to email ${email}:`, e.message); }
+  }
+}
+
+// Send daily digest once every 24 hours
+setInterval(sendDailyDigest, 24 * 60 * 60 * 1000);
 
 // ── HTTP server ───────────────────────────────────────────────
 const server = http.createServer((req, res) => {

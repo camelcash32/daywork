@@ -2977,6 +2977,136 @@ function showSettingsDropdown(anchorEl) {
 
   ap(panel, chat);
 
+  // ── EMAIL NOTIFICATIONS ─────────────────────────────────────
+  const emailSec = section('📬 EMAIL NOTIFICATIONS');
+  const NOTIFY_CATS = ['Construction','Moving','Landscaping','Cleaning','Delivery','Painting','General Labor'];
+  const NOTIFY_ICONS = {Construction:'🔨',Moving:'📦',Landscaping:'🌿',Cleaning:'🧹',Delivery:'🚚',Painting:'🖌️','General Labor':'💪'};
+
+  let notifyEnabled = U.emailAlerts !== false;
+  let notifyCats = new Set(U.notifyCategories && U.notifyCategories.length ? U.notifyCategories : NOTIFY_CATS);
+  let notifyCustom = [...(U.notifyCustomCategories || [])];
+  let notifyFreq = U.notifyFrequency || 'instant';
+
+  function saveNotifyPrefs() {
+    U = {...U,
+      emailAlerts: notifyEnabled,
+      notifyCategories: [...notifyCats].filter(n => NOTIFY_CATS.includes(n)),
+      notifyCustomCategories: notifyCustom,
+      notifyFrequency: notifyFreq
+    };
+    save('currentUser', U);
+    syncUser(U);
+  }
+
+  const catWrap = div(null, {transition:'opacity .2s'});
+  if (!notifyEnabled) { catWrap.style.opacity='0.35'; catWrap.style.pointerEvents='none'; }
+
+  ap(emailSec, row('🔔', 'Job Alert Emails',
+    toggle(notifyEnabled, v => {
+      notifyEnabled = v;
+      catWrap.style.opacity = v ? '1' : '0.35';
+      catWrap.style.pointerEvents = v ? '' : 'none';
+      saveNotifyPrefs();
+    })
+  ));
+
+  // Category grid
+  const notifyGrid = div(null, {display:'grid', gridTemplateColumns:'1fr 1fr', gap:'5px', padding:'6px 0 4px'});
+
+  function makeNotifyChip(name, icon, isCustom) {
+    const isOn = notifyCats.has(name);
+    const borderOnColor = isCustom ? 'rgba(167,139,250,.35)' : 'rgba(232,197,71,.35)';
+    const bgOnColor = isCustom ? 'rgba(167,139,250,.07)' : 'rgba(232,197,71,.07)';
+    const checkOnColor = isCustom ? '#a78bfa' : '#e8c547';
+    const chip = div(null, {
+      display:'flex', alignItems:'center', gap:'6px', padding:'7px 9px',
+      borderRadius:'8px', border:'1px solid', cursor:'pointer', userSelect:'none',
+      borderColor: isOn ? borderOnColor : '#252525',
+      background: isOn ? bgOnColor : '#1a1a1a', transition:'all .15s'
+    });
+    ap(chip, ap(el('span',null,{fontSize:'14px',lineHeight:'1',flexShrink:'0'}), icon));
+    ap(chip, ap(el('span',null,{fontSize:'11px',fontWeight:'600',flex:'1'}), name));
+    if (isCustom) {
+      const rm = btn(null, {background:'none',border:'none',color:'#555',cursor:'pointer',
+        fontSize:'11px',padding:'0',width:'auto',lineHeight:'1',flexShrink:'0'},
+        (e) => { e.stopPropagation(); notifyCustom=notifyCustom.filter(c=>c!==name); notifyCats.delete(name); chip.remove(); saveNotifyPrefs(); }, '✕');
+      ap(chip, rm);
+    } else {
+      const chk = div(null, {
+        width:'13px',height:'13px',borderRadius:'3px',flexShrink:'0',
+        background: isOn ? checkOnColor : '#111', border:'1px solid',
+        borderColor: isOn ? checkOnColor : '#333',
+        display:'flex',alignItems:'center',justifyContent:'center',
+        fontSize:'8px',color:'#0f0f0f',transition:'all .15s'
+      });
+      if (isOn) ap(chk,'✓');
+      ap(chip, chk);
+      chip.onclick = () => {
+        const nowOn = notifyCats.has(name);
+        if (nowOn) { notifyCats.delete(name); chip.style.borderColor='#252525'; chip.style.background='#1a1a1a'; chk.style.background='#111'; chk.style.borderColor='#333'; chk.textContent=''; }
+        else { notifyCats.add(name); chip.style.borderColor=borderOnColor; chip.style.background=bgOnColor; chk.style.background=checkOnColor; chk.style.borderColor=checkOnColor; chk.textContent='✓'; }
+        saveNotifyPrefs();
+      };
+    }
+    return chip;
+  }
+
+  NOTIFY_CATS.forEach(name => notifyGrid.appendChild(makeNotifyChip(name, NOTIFY_ICONS[name], false)));
+  notifyCustom.forEach(name => notifyGrid.appendChild(makeNotifyChip(name, '🔖', true)));
+  ap(catWrap, notifyGrid);
+
+  // Custom category input
+  const ncWrap = div(null, {display:'flex', gap:'5px', padding:'4px 0 6px'});
+  const ncInp = el('input',null,{
+    flex:'1',background:'#111',border:'1px solid #2a2a2a',borderRadius:'7px',
+    padding:'5px 8px',color:'#f0ede8',fontFamily:'inherit',fontSize:'11px',outline:'none'
+  },{type:'text',maxlength:'30',placeholder:'Add custom category…'});
+  ncInp.addEventListener('focus',()=>ncInp.style.borderColor='#a78bfa');
+  ncInp.addEventListener('blur',()=>ncInp.style.borderColor='#2a2a2a');
+  const ncAddBtn = btn(null,{
+    background:'rgba(167,139,250,.1)',border:'1px solid rgba(167,139,250,.3)',
+    borderRadius:'7px',color:'#a78bfa',fontSize:'11px',fontWeight:'700',
+    cursor:'pointer',padding:'5px 9px',fontFamily:'inherit',width:'auto'
+  }, () => {
+    const v = ncInp.value.trim();
+    if (v.length < 2) return;
+    const exists = NOTIFY_CATS.some(c=>c.toLowerCase()===v.toLowerCase()) || notifyCustom.some(c=>c.toLowerCase()===v.toLowerCase());
+    if (exists) { showToast('Category already added'); return; }
+    notifyCustom.push(v); notifyCats.add(v);
+    notifyGrid.appendChild(makeNotifyChip(v,'🔖',true));
+    ncInp.value=''; saveNotifyPrefs();
+  },'+ Add');
+  ncInp.addEventListener('keydown',e=>{ if(e.key==='Enter') ncAddBtn.click(); });
+  ap(ncWrap, ncInp, ncAddBtn);
+  ap(catWrap, ncWrap);
+
+  // Frequency buttons
+  const freqWrap = div(null,{display:'flex',gap:'5px',padding:'2px 0 8px'});
+  ['instant','daily'].forEach(f => {
+    const isActive = notifyFreq === f;
+    const fb = btn(null,{
+      flex:'1',padding:'6px',borderRadius:'7px',border:'1px solid',
+      borderColor: isActive?'rgba(167,139,250,.4)':'#252525',
+      background: isActive?'rgba(167,139,250,.08)':'#1a1a1a',
+      color: isActive?'#a78bfa':'#555',fontSize:'11px',fontWeight:'700',
+      cursor:'pointer',fontFamily:'inherit',width:'auto',transition:'all .15s'
+    }, ()=>{
+      notifyFreq = f;
+      freqWrap.querySelectorAll('button').forEach(b=>{
+        const a = b.dataset.freq===f;
+        b.style.borderColor=a?'rgba(167,139,250,.4)':'#252525';
+        b.style.background=a?'rgba(167,139,250,.08)':'#1a1a1a';
+        b.style.color=a?'#a78bfa':'#555';
+      });
+      saveNotifyPrefs();
+    }, f==='instant'?'⚡ Instant':'📅 Daily Digest');
+    fb.dataset.freq = f;
+    ap(freqWrap, fb);
+  });
+  ap(catWrap, freqWrap);
+  ap(emailSec, catWrap);
+  ap(panel, emailSec);
+
   // ── PRIVACY & SAFETY ────────────────────────────────────────
   const priv = section('🔒 PRIVACY & SAFETY');
 
