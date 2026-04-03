@@ -3136,8 +3136,10 @@ function showSettingsDropdown(anchorEl) {
   ));
   ap(panel, closeSec);
 
-  // ── SIGN OUT ────────────────────────────────────────────────
-  const footer = div(null,{padding:'10px 16px',borderTop:'1px solid #1e1e1e'});
+  // ── TERMS & SIGN OUT ────────────────────────────────────────
+  const footer = div(null,{padding:'10px 16px',borderTop:'1px solid #1e1e1e',display:'flex',flexDirection:'column',gap:'8px'});
+  ap(footer, btn('btn btn-d',{fontSize:'13px',color:'#a78bfa',borderColor:'rgba(167,139,250,.3)'},
+    ()=>{panel.remove();showToS(null);},'📄 Terms of Service'));
   ap(footer, btn('btn btn-d',{fontSize:'13px',color:'#ef4444',borderColor:'rgba(239,68,68,.3)'},
     ()=>{U=null;save('currentUser',null);panel.remove();rerender();},'Sign Out'));
   ap(panel, footer);
