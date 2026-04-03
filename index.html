@@ -1002,7 +1002,7 @@ function renderForm(){
   const slotsIn=inp("number","1",formS.slots,e=>formS.slots=e.target.value,{},{min:"1",max:"20"});
   const durIn=inp("text","e.g. 4–6 hrs",formS.duration,e=>formS.duration=e.target.value);
   const dateIn=inp("text","e.g. Tomorrow, 8AM",formS.date,e=>{formS.date=e.target.value;refreshSubmit();});
-  const descIn=el("textarea",null,{});descIn.placeholder="What will workers be doing?";descIn.value=formS.description;descIn.addEventListener("input",e=>formS.description=e.target.value);
+  const descIn=el("textarea",null,{});descIn.placeholder="Describe what you need done (e.g. move furniture, yard cleanup, help loading a truck...)";descIn.value=formS.description;descIn.addEventListener("input",e=>formS.description=e.target.value);
   const urgCb=el("input",null,{width:"16px",height:"16px",accentColor:"#ef4444"},{type:"checkbox"});
   urgCb.checked=formS.urgent;urgCb.addEventListener("change",e=>formS.urgent=e.target.checked);
   const zipIn=inp("text","e.g. 78701",formS.zip,e=>{formS.zip=e.target.value.replace(/\D/g,"").slice(0,5);refreshSubmit();if(formS.zip.length===0||formS.zip.length===5)rerender();},{borderColor:fzBad?"#ef4444":fzInfo?"#e8c547":""},{"maxlength":"5"});
@@ -1057,8 +1057,9 @@ function renderForm(){
 
   function fld(labelTxt,...c){return ap(div(null,{}),ap(el("label","lbl",{}),labelTxt),...c);}
   const left=div(null,{display:"flex",flexDirection:"column",gap:"16px"},
-    pp(null,{fontSize:"10px",fontWeight:"700",color:"#e8c547",letterSpacing:".15em"},editId?"EDITING JOB":"POST A JOB"),
-    ap(el("h1",null,{marginBottom:"4px"}),editId?"Update Listing":"New Listing"),
+    pp(null,{fontSize:"10px",fontWeight:"700",color:"#e8c547",letterSpacing:".15em"},editId?"EDITING JOB":"HIRE SOMEONE TODAY"),
+    ap(el("h1",null,{marginBottom:"4px"}),editId?"Update Listing":"I Need Help With..."),
+    ap(pp(null,{fontSize:"13px",color:"#888",marginBottom:"4px"}),"Describe your task — workers near you will apply and you pick who shows up."),
     ap(div(null,{background:"rgba(232,197,71,.06)",border:"1px solid rgba(232,197,71,.15)",borderRadius:"8px",padding:"10px 14px"}),
       pp(null,{fontSize:"12px",color:"#888"},"⏱ Jobs automatically expire after ",sp(null,{color:"#e8c547",fontWeight:"700"},"24 hours"),". Extend anytime from My Listings.")
     ),
