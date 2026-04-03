@@ -896,16 +896,23 @@ if(url === '/.well-known/assetlinks.json') {
     const cfg = getCfg();
     if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
     const chunks = [];
-    req.on('data', d => chunks.push(d));
+    req.on('data', d => chunks.push(Buffer.isBuffer(d) ? d : Buffer.from(d)));
     req.on('end', () => {
       try {
         const buf = Buffer.concat(chunks);
         const videoPath = path.join(DATA_DIR, 'promo-video.mp4');
+        console.log('[VIDEO] Writing', buf.length, 'bytes to', videoPath);
+        // Ensure directory exists
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
         fs.writeFileSync(videoPath, buf);
-        console.log('[VIDEO] Promo video uploaded, size:', buf.length, 'bytes');
+        console.log('[VIDEO] Upload complete');
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         res.end(JSON.stringify({ ok: true, size: buf.length }));
-      } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+      } catch(e) {
+        console.error('[VIDEO] Upload error:', e.message);
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
     });
     return;
   }
