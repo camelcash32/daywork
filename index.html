@@ -368,9 +368,9 @@ function renderAuth(accentColor, role, onLogin){
         const users = load("users", MOCK_USERS);
         const u = users.find(u=>u.email.toLowerCase()===eIn.value.toLowerCase()&&u.password===pIn.value);
         if(!u){
-          if(!_wsSynced){ errP.textContent="⏳ Still connecting to server — please wait a moment and try again."; }
-          else { errP.textContent="❌ Invalid email or password."; }
-          errP.scrollIntoView({behavior:"smooth",block:"nearest"});
+          const loginErr = !_wsSynced ? "⏳ Still connecting — please wait a moment and try again." : "❌ Invalid email or password.";
+          errP.textContent = loginErr;
+          showToast(loginErr);
           return;
         }
         _savedLoginEmail=''; _savedLoginPassword='';
