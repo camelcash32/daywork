@@ -217,7 +217,7 @@ function sp(cls,style,...k){return ap(el("span",cls,style),...k);}
 const span=sp; // alias used in seeker functions
 function pp(cls,style,...k){return ap(el("p",cls,style),...k);}
 const p2=pp; // alias used in seeker functions
-function btn(cls,style,onclick,...k){const b=ap(el("button",cls,style),...k);b.onclick=onclick;return b;}
+function btn(cls,style,onclick,...k){const b=ap(el("button",cls,style),...k);b.type="button";b.onclick=onclick;return b;}
 function inp(type,ph,val,oninput,style,attrs){const i=el("input",null,style||{},{type,placeholder:ph,...(attrs||{})});i.value=val||"";if(oninput)i.addEventListener("input",oninput);return i;}
 function lbl(t){return ap(el("label","lbl",{}),t);}
 let _searchTimer=null;
@@ -351,21 +351,29 @@ function renderAuth(accentColor, role, onLogin){
       // Use real form elements so browser offers to save password
       const loginForm = el("form",null,{width:"100%"},{autocomplete:"on"});
       loginForm.onsubmit = (e)=>{ e.preventDefault(); doLogin(); };
-      const eIn = inp("email","your@email.com","");
+      const eIn = inp("email","your@email.com",_savedLoginEmail);
       eIn.setAttribute("name","email");
       eIn.setAttribute("autocomplete","email");
-      const pIn = inp("password","Password","");
+      eIn.addEventListener("input",()=>{ _savedLoginEmail=eIn.value; });
+      const pIn = inp("password","Password",_savedLoginPassword);
       pIn.setAttribute("name","password");
       pIn.setAttribute("autocomplete","current-password");
+      pIn.addEventListener("input",()=>{ _savedLoginPassword=pIn.value; });
       const pWrap = div(null,{position:"relative"});
       const eyeLogin = el("button",null,{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:"16px",color:"#555",padding:"0",lineHeight:"1",opacity:"0.5"},{type:"button"});
       eyeLogin.textContent="👁";
       eyeLogin.onclick=()=>{pIn.type=pIn.type==="password"?"text":"password";eyeLogin.style.opacity=pIn.type==="text"?"1":"0.5";};
-      const errP = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px"});
+      const errP = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px",fontWeight:"700",textAlign:"center"});
       const doLogin = ()=>{
         const users = load("users", MOCK_USERS);
         const u = users.find(u=>u.email.toLowerCase()===eIn.value.toLowerCase()&&u.password===pIn.value);
-        if(!u){ errP.textContent="Invalid email or password."; return; }
+        if(!u){
+          if(!_wsSynced){ errP.textContent="⏳ Still connecting to server — please wait a moment and try again."; }
+          else { errP.textContent="❌ Invalid email or password."; }
+          errP.scrollIntoView({behavior:"smooth",block:"nearest"});
+          return;
+        }
+        _savedLoginEmail=''; _savedLoginPassword='';
         onLogin(u);
         if(_ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:"identify",user:u.name}));
         // Sync users to server
@@ -1338,6 +1346,8 @@ let _activeChatKey = null;
 let _savedAuthView = 'login';
 let _savedPendingVerify = null;
 let _savedResetToken = null;
+let _savedLoginEmail = '';
+let _savedLoginPassword = '';
 let _activeChatRender = null;
 let _chatNotifs = {};
 
@@ -2396,7 +2406,7 @@ function renderProfile(name) {
 }
 
 // ── WEBSOCKET SYNC ────────────────────────────────────────────
-let _ws=null, _wsReady=false, _queue=[];
+let _ws=null, _wsReady=false, _queue=[], _wsSynced=false;
 
 function wsConnect(){
   try{
@@ -2472,6 +2482,7 @@ function wsConnect(){
           if(Array.isArray(msg.db.bulletin)) bulletinPosts = msg.db.bulletin;
           if(Array.isArray(msg.db.workers)) workerPosts = msg.db.workers.filter(p=>!p.expiresAt||p.expiresAt>Date.now());
           console.log('[WS] init: '+jobs.length+' jobs loaded');
+          _wsSynced = true;
           rerender();
           _showConn(true);
         }
