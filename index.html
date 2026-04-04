@@ -901,7 +901,7 @@ let mode=load("userMode","seeker");
 let jobs=[]; // populated by server via WebSocket
 function pruneExpired(){return pruneExpiredJobs(jobs||[]);}
 let ratings=load("ratings",INITIAL_RATINGS);
-let formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
+let formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",payScope:"each",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
 let bulletinPosts=[];
 let workerPosts=[];
 let editId=null, cardOpen=false; // cardOpen unused - free posting
@@ -1038,6 +1038,9 @@ function renderForm(){
   const payTypeSel=el("select",null,{background:"#111",color:"#fff",border:"1px solid #222",borderRadius:"8px",padding:"10px 10px",fontSize:"14px",cursor:"pointer"});
   [["flat","Flat"],["hourly","Per Hour"]].forEach(([val,lbl])=>{const o=el("option",null,{},{value:val});o.textContent=lbl;if(val===formS.payType)o.selected=true;payTypeSel.appendChild(o);});
   payTypeSel.addEventListener("change",e=>{formS.payType=e.target.value;});
+  const payScopeSel=el("select",null,{background:"#111",color:"#fff",border:"1px solid #222",borderRadius:"8px",padding:"10px 10px",fontSize:"14px",cursor:"pointer"});
+  [["each","Each"],["total","Total"]].forEach(([val,lbl])=>{const o=el("option",null,{},{value:val});o.textContent=lbl;if(val===(formS.payScope||"each"))o.selected=true;payScopeSel.appendChild(o);});
+  payScopeSel.addEventListener("change",e=>{formS.payScope=e.target.value;});
 
   // Live can check - always reads current formS
   function canCheck(){
@@ -1058,7 +1061,7 @@ function renderForm(){
   const submitWrap=div(null,{marginTop:"4px"});
   if(editId){
     const saveB=btn(canCheck()?"btn btn-g":"btn btn-d",{},()=>{if(canCheck()){doPublish();rerender();}else showToast("⚠️ Fill required fields.");},"✓ Update Job");
-    const cancelB=btn("btn btn-d",{marginTop:"8px"},()=>{editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};rerender();},"✕ Cancel");
+    const cancelB=btn("btn btn-d",{marginTop:"8px"},()=>{editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",payScope:"each",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};rerender();},"✕ Cancel");
     ap(submitWrap,saveB,cancelB);
   } else {
     const ok=canCheck();
@@ -1092,7 +1095,7 @@ function renderForm(){
     ),
     fld("Job Title *",titleIn),
     div("g2",{},fld("Category",catSel),fld("Workers Needed",slotsIn)),
-    div("g2",{},ap(div(null,{}),ap(el("label","lbl",{}),"Pay Amount * ($, max $200)"),div(null,{display:"flex",gap:"6px"},payAmtIn,payTypeSel),(_payAmt>200?pp(null,{color:"#ef4444",fontSize:"12px",marginTop:"4px"},"⚠️ Max is $200"):el("span"))),fld("Duration",durIn)),
+    div("g2",{},ap(div(null,{}),ap(el("label","lbl",{}),"Pay Amount * ($, max $200)"),div(null,{display:"flex",gap:"6px"},payAmtIn,payTypeSel,payScopeSel),(_payAmt>200?pp(null,{color:"#ef4444",fontSize:"12px",marginTop:"4px"},"⚠️ Max is $200"):el("span"))),fld("Duration",durIn)),
     div("g2",{},ap(div(null,{}),ap(el("label","lbl",{}),"Job ZIP *"),zipIn,zipFb),fld("Date / Time *",dateIn)),
     fld("Description",descIn),
     buildPhotoUpload(),
@@ -1123,8 +1126,8 @@ function renderForm(){
         ),
         div(null,{display:"flex",gap:"7px"},
           btn("btn btn-d",{padding:"6px",fontSize:"11px",flex:"1"},()=>{
-            if(isEd){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
-            else{editId=job.id;formS={title:job.title,category:job.category,pay:job.pay,payAmount:job.payAmount||"",payType:job.payType||"flat",duration:job.duration||"",zip:job.zip,date:job.date,slots:String(job.slots),description:job.description||"",urgent:job.urgent||false};cardOpen=false;window.scrollTo({top:0,behavior:"smooth"});}
+            if(isEd){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",payScope:"each",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
+            else{editId=job.id;formS={title:job.title,category:job.category,pay:job.pay,payAmount:job.payAmount||"",payType:job.payType||"flat",payScope:job.payScope||"each",duration:job.duration||"",zip:job.zip,date:job.date,slots:String(job.slots),description:job.description||"",urgent:job.urgent||false};cardOpen=false;window.scrollTo({top:0,behavior:"smooth"});}
             rerender();
           },isEd?"✕ Cancel":"✏️ Edit"),
           btn("btn btn-d",{padding:"6px",fontSize:"11px",flex:"1"},()=>{
@@ -1134,7 +1137,7 @@ function renderForm(){
           },"⏰ Extend"),
           btn("btn btn-d",{padding:"6px",fontSize:"11px",flex:"1"},()=>{
             jobs=jobs.filter(j=>j.id!==job.id);save("jobs",jobs);
-            if(editId===job.id){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
+            if(editId===job.id){editId=null;formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",payScope:"each",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};}
             showToast("🗑 Deleted.");rerender();
           },"🗑")
         )
@@ -1218,7 +1221,7 @@ function doPublish(){
   const loc=fzInfo.state?fzInfo.city+", "+fzInfo.state:fzInfo.city;
   const expiresAt=Date.now()+DAY_MS;
   // Auto-generate pay display string from payAmount + payType
-  formS.pay = formS.payAmount ? "$"+parseFloat(formS.payAmount).toFixed(2)+(formS.payType==="hourly"?"/hr":" flat") : formS.pay;
+  formS.pay = formS.payAmount ? "$"+parseFloat(formS.payAmount).toFixed(2)+(formS.payType==="hourly"?"/hr":" flat")+" "+(formS.payScope==="total"?"total":"each") : formS.pay;
   if(editId){
     jobs=jobs.map(j=>j.id===editId?{...j,...formS,location:loc,slots:parseInt(formS.slots),expiresAt}:j);
     showToast("✏️ Job updated! Timer reset to 24h.");
@@ -1227,7 +1230,7 @@ function doPublish(){
     showToast("✅ Job posted! Expires in 24 hours.");
   }
   save("jobs",jobs);editId=null;
-  formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
+  formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",payScope:"each",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
 }
 
 function renderApplicants(){
@@ -1893,6 +1896,7 @@ function renderBrowse(){
       p2(null,{fontWeight:"600",fontSize:"15px",marginBottom:"6px",lineHeight:"1.3"},job.title),
       div(null,{display:"flex",gap:"8px",marginBottom:"6px",flexWrap:"wrap",alignItems:"center"},
         span(null,{color:"#e8c547",fontWeight:"700",fontSize:"14px"},"$"+job.payAmount),
+        span(null,{fontSize:"11px",color:"#888",fontWeight:"600"},job.payScope==="total"?"total":"each"),
         span(null,{fontSize:"12px",color:"#444"},"⏱ "+job.duration)
       ),
       p2(null,{fontSize:"12px",color:"#444",marginBottom:"4px"},"📍 "+job.location),
