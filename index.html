@@ -2471,9 +2471,7 @@ function wsConnect(){
             }catch(e){}
           }
           if(Array.isArray(msg.db.jobs)){
-            const incoming = msg.db.jobs.length > 0 ? msg.db.jobs : SAMPLE_JOBS;
-            jobs = pruneExpiredJobs(initJobTimers(incoming));
-            if(!jobs.length) jobs = initJobTimers(SAMPLE_JOBS); // fallback
+            jobs = pruneExpiredJobs(initJobTimers(msg.db.jobs));
           }
           if(msg.db.ratings && typeof msg.db.ratings==='object')
             ratings = msg.db.ratings;
