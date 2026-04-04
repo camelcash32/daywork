@@ -368,9 +368,15 @@ function renderAuth(accentColor, role, onLogin){
         const users = load("users", MOCK_USERS);
         const u = users.find(u=>u.email.toLowerCase()===eIn.value.toLowerCase()&&u.password===pIn.value);
         if(!u){
-          const loginErr = !_wsSynced ? "⏳ Still connecting — please wait a moment and try again." : "❌ Invalid email or password.";
+          const loginErr = !_wsSynced ? "⏳ Still connecting — please wait a moment and try again." : "❌ Wrong email or password. Please try again.";
           errP.textContent = loginErr;
-          showToast(loginErr);
+          const _old=document.getElementById('_lerr');if(_old)_old.remove();
+          const _eb=document.createElement('div');
+          _eb.id='_lerr';
+          _eb.style.cssText='position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;text-align:center;padding:14px 16px;font-weight:700;font-size:15px;z-index:99999;';
+          _eb.textContent=loginErr;
+          document.body.appendChild(_eb);
+          setTimeout(()=>_eb.remove(),4000);
           return;
         }
         _savedLoginEmail=''; _savedLoginPassword='';
