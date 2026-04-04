@@ -366,7 +366,7 @@ function renderAuth(accentColor, role, onLogin){
       const errP = pp(null,{color:"#ef4444",fontSize:"13px",minHeight:"18px",fontWeight:"700",textAlign:"center"});
       const doLogin = ()=>{
         const users = load("users", MOCK_USERS);
-        const u = users.find(u=>u.email.toLowerCase()===eIn.value.toLowerCase()&&u.password===pIn.value);
+        const u = users.find(u=>u.email&&u.email.toLowerCase()===eIn.value.toLowerCase()&&u.password===pIn.value);
         if(!u){
           const loginErr = !_wsSynced ? "⏳ Still connecting — please wait a moment and try again." : "❌ Wrong email or password.";
           errP.textContent = loginErr;
