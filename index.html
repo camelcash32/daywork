@@ -368,15 +368,19 @@ function renderAuth(accentColor, role, onLogin){
         const users = load("users", MOCK_USERS);
         const u = users.find(u=>u.email.toLowerCase()===eIn.value.toLowerCase()&&u.password===pIn.value);
         if(!u){
-          const loginErr = !_wsSynced ? "⏳ Still connecting — please wait a moment and try again." : "❌ Wrong email or password. Please try again.";
+          const loginErr = !_wsSynced ? "⏳ Still connecting — please wait a moment and try again." : "❌ Wrong email or password.";
           errP.textContent = loginErr;
+          signInBtn.textContent = loginErr;
+          signInBtn.style.background = "#ef4444";
+          signInBtn.style.color = "#fff";
+          setTimeout(()=>{ signInBtn.textContent="Sign In →"; signInBtn.style.background=""; signInBtn.style.color=""; }, 3000);
           const _old=document.getElementById('_lerr');if(_old)_old.remove();
           const _eb=document.createElement('div');
           _eb.id='_lerr';
           _eb.style.cssText='position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;text-align:center;padding:14px 16px;font-weight:700;font-size:15px;z-index:99999;';
           _eb.textContent=loginErr;
           document.body.appendChild(_eb);
-          setTimeout(()=>_eb.remove(),4000);
+          setTimeout(()=>_eb.remove(),3000);
           return;
         }
         _savedLoginEmail=''; _savedLoginPassword='';
@@ -391,12 +395,13 @@ function renderAuth(accentColor, role, onLogin){
       forgotLink.onclick = ()=>{ authView="forgot"; _savedAuthView="forgot"; rebuild(); };
       const forgotRow = div(null,{textAlign:"right",marginTop:"4px",marginBottom:"8px"});
       ap(forgotRow, forgotLink);
+      const signInBtn = btn("btn btn-accent",{marginBottom:"14px","--accent":accentColor},doLogin,"Sign In →");
       ap(loginForm,
         ap(div(null,{marginBottom:"10px"}),lbl("EMAIL"),eIn),
         ap(div(null,{marginBottom:"2px"}),lbl("PASSWORD"),ap(pWrap,pIn,eyeLogin)),
         forgotRow,
         errP,
-        btn("btn btn-accent",{marginBottom:"14px","--accent":accentColor},doLogin,"Sign In →")
+        signInBtn
       );
       ap(card, loginForm);
       const switchRow = div(null,{textAlign:"center",fontSize:"13px",color:"#555"});
