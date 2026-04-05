@@ -284,6 +284,7 @@ function playVideo(){
 })();
 function goApp(mode){
   try { localStorage.setItem('dw_userMode', JSON.stringify(mode)); } catch(e) {}
+  try { sessionStorage.setItem('_startSignup', '1'); } catch(e) {}
   window.location.href = '/app';
 }
 </script>
