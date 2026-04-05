@@ -240,12 +240,30 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
           <div class="ctit" style="margin-bottom:12px">⚙️ Settings</div>
           <div class="sw"><div class="swt" id="sw-af" onclick="modCmd('toggleAutoFlag','',{})"><div class="swth"></div></div><span style="font-size:13px">Auto-flag jobs with banned words</span></div>
         </div>
-        <div class="card" style="margin-bottom:14px;max-width:560px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-            <div class="ctit" style="margin:0">🌍 Recent Site Visits</div>
-            <button onclick="clearVisits()" style="background:none;border:1px solid #333;color:#888;border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit">Clear</button>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px">
+          <div class="card" style="flex:0 0 auto;width:560px;max-width:100%">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="ctit" style="margin:0">🌍 Recent Site Visits</div>
+              <button onclick="clearVisits()" style="background:none;border:1px solid #333;color:#888;border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit">Clear</button>
+            </div>
+            <div id="R-visits" style="max-height:340px;overflow-y:auto"></div>
           </div>
-          <div id="R-visits" style="max-height:340px;overflow-y:auto"></div>
+          <div class="card" style="flex:1;min-width:320px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="ctit" style="margin:0">❓ Manage FAQ</div>
+              <button onclick="showFaqForm()" id="faq-add-btn" style="background:#e8c547;border:none;color:#0f0f0f;border-radius:8px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">+ Add</button>
+            </div>
+            <div id="faq-form" style="display:none;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:10px;padding:14px;margin-bottom:12px">
+              <input id="faq-f-group" placeholder="Group (e.g. General, For Workers, For Hirers)" style="width:100%;background:#111;border:1px solid #222;border-radius:7px;padding:8px 10px;color:#f0ede8;font-family:inherit;font-size:13px;margin-bottom:8px;box-sizing:border-box"/>
+              <input id="faq-f-q" placeholder="Question" style="width:100%;background:#111;border:1px solid #222;border-radius:7px;padding:8px 10px;color:#f0ede8;font-family:inherit;font-size:13px;margin-bottom:8px;box-sizing:border-box"/>
+              <textarea id="faq-f-a" placeholder="Answer" rows="3" style="width:100%;background:#111;border:1px solid #222;border-radius:7px;padding:8px 10px;color:#f0ede8;font-family:inherit;font-size:13px;margin-bottom:10px;box-sizing:border-box;resize:vertical"></textarea>
+              <div style="display:flex;gap:8px">
+                <button onclick="submitFaq()" style="background:#e8c547;border:none;color:#0f0f0f;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Save</button>
+                <button onclick="cancelFaqForm()" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:7px 12px;font-size:12px;cursor:pointer;font-family:inherit">Cancel</button>
+              </div>
+            </div>
+            <div id="R-faq" style="max-height:360px;overflow-y:auto"></div>
+          </div>
         </div>
       </div>
 
@@ -500,7 +518,7 @@ function connectWS(){
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
     if(m.type==='init'){ if(m.db)db=m.db; if(m.db&&m.db.bulletin)renderBulletin(m.db.bulletin); if(m.mod)applyMod(m.mod); rAll(); }
-    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); rAll(); }
+    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; rAll(); }
     if(m.type==='modUpdate') applyMod(m.mod);
     if(m.type==='fullMod'){ mod={...mod,...m.mod}; if(m.mod.errors)fErr=m.mod.errors; if(m.mod.modLog)fLog=m.mod.modLog; rAll(); }
     if(m.type==='modLog'){ fLog=m.log||[]; fErr=m.errors||[]; rAll(); }
@@ -533,7 +551,7 @@ function go(pg){
   if(pg==='ref') loadRefunds();
 }
 
-function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderVisits(); updBadges(); updSw(); }
+function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderVisits(); renderFaq(); updBadges(); updSw(); }
 
 function rStats(){
   const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
@@ -660,6 +678,51 @@ function renderVisits(){
 function clearVisits(){
   if(!confirm('Clear all visit history?')) return;
   modCmd('clearVisits','',{});
+}
+
+let _faqEditId = null;
+function renderFaq(){
+  const el=document.getElementById('R-faq');
+  if(!el) return;
+  const list=db.faq||[];
+  if(!list.length){ el.innerHTML='<div style="color:#333;font-size:13px;padding:10px 0">No FAQ entries yet. Click + Add to create one.</div>'; return; }
+  const groups=[...new Set(list.map(f=>f.group||'General'))];
+  el.innerHTML=groups.map(g=>`
+    <div style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#e8c547;margin:10px 0 6px;text-transform:uppercase">${g}</div>
+    ${list.filter(f=>(f.group||'General')===g).map(f=>`
+      <div style="background:#111;border:1px solid #1a1a1a;border-radius:8px;padding:10px 12px;margin-bottom:6px">
+        <div style="font-size:13px;font-weight:700;color:#f0ede8;margin-bottom:4px">${f.question}</div>
+        <div style="font-size:12px;color:#555;line-height:1.55;margin-bottom:8px">${f.answer}</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="editFaqItem(${f.id})" style="background:none;border:1px solid #333;color:#888;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit">Edit</button>
+          <button onclick="deleteFaqItem(${f.id})" style="background:none;border:1px solid rgba(239,68,68,.3);color:#ef4444;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit">Delete</button>
+        </div>
+      </div>`).join('')}`).join('');
+}
+function showFaqForm(){ _faqEditId=null; document.getElementById('faq-form').style.display='block'; document.getElementById('faq-f-group').value=''; document.getElementById('faq-f-q').value=''; document.getElementById('faq-f-a').value=''; document.getElementById('faq-add-btn').textContent='Cancel'; document.getElementById('faq-add-btn').onclick=cancelFaqForm; }
+function cancelFaqForm(){ _faqEditId=null; document.getElementById('faq-form').style.display='none'; document.getElementById('faq-add-btn').textContent='+ Add'; document.getElementById('faq-add-btn').onclick=showFaqForm; }
+function editFaqItem(id){
+  const f=(db.faq||[]).find(x=>x.id===id); if(!f) return;
+  _faqEditId=id;
+  document.getElementById('faq-form').style.display='block';
+  document.getElementById('faq-f-group').value=f.group||'';
+  document.getElementById('faq-f-q').value=f.question||'';
+  document.getElementById('faq-f-a').value=f.answer||'';
+  document.getElementById('faq-add-btn').textContent='Cancel';
+  document.getElementById('faq-add-btn').onclick=cancelFaqForm;
+}
+function deleteFaqItem(id){
+  if(!confirm('Delete this FAQ entry?')) return;
+  modCmd('deleteFaq', id, {});
+}
+function submitFaq(){
+  const group=document.getElementById('faq-f-group').value.trim();
+  const question=document.getElementById('faq-f-q').value.trim();
+  const answer=document.getElementById('faq-f-a').value.trim();
+  if(!question||!answer){ alert('Question and answer are required.'); return; }
+  if(_faqEditId) modCmd('editFaq', _faqEditId, {group:group||'General',question,answer});
+  else modCmd('addFaq', '', {group:group||'General',question,answer});
+  cancelFaqForm();
 }
 function renderLog(){
   const el=document.getElementById('F-log');

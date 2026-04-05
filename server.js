@@ -29,7 +29,17 @@ try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e) {}
 // ── Persistence ───────────────────────────────────────────────
 function loadDB() {
   try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
-  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], workers:[], payments:[], refundRequests:[], digestQueue:{} };
+  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], workers:[], payments:[], refundRequests:[], digestQueue:{}, faq:[
+    {id:1,group:'General',question:'Is it free to sign up?',answer:'Yes, signing up on GoDayWork is always free for both hirers and workers. There are no monthly fees or subscriptions.'},
+    {id:2,group:'General',question:'How do I contact support?',answer:'Email us at contact.godaywork@gmail.com and we\'ll get back to you as soon as possible.'},
+    {id:3,group:'General',question:'How long do job posts last?',answer:'Job posts expire after 24 hours. This keeps the platform focused on same-day and next-day gigs and ensures listings stay fresh and relevant.'},
+    {id:4,group:'For Workers',question:'Do I need experience to find work?',answer:'No experience required. Browse jobs near your ZIP code, apply with one tap, and show up ready to work. No resume, no interview.'},
+    {id:5,group:'For Workers',question:'How fast do I get paid?',answer:'Once the hirer marks the job complete, funds are processed through Stripe and typically deposited to your bank within 2 business days for free. An instant payout option is also available for a 1% fee, with funds arriving in approximately 30 minutes to an eligible debit card.'},
+    {id:6,group:'For Workers',question:'How do I know workers are reliable?',answer:'All workers have public ratings and reviews from past hirers. We recommend checking a worker\'s profile and reviews before accepting. GoDayWork does not screen or guarantee workers — it is your responsibility to choose who you hire.'},
+    {id:7,group:'For Hirers',question:'How much does the platform charge?',answer:'GoDayWork charges a 7% platform fee on all job payments, paid by the hirer at checkout. There are no hidden fees. Tips are passed 100% to the worker with no platform fee.'},
+    {id:8,group:'For Hirers',question:'Is my payment secure?',answer:'Yes. All payments are processed through Stripe, one of the most trusted payment platforms in the world. GoDayWork never stores your card information — all payment data is handled securely by Stripe.'},
+    {id:9,group:'For Hirers',question:'What kinds of jobs can I post?',answer:'You can post any legal same-day gig — moving, cleaning, landscaping, yard work, construction, general labor, and more. Jobs must be honest, accurately described, and not involve illegal activity.'}
+  ] };
 }
 function loadMod() {
   try { if (fs.existsSync(MOD_FILE)) return JSON.parse(fs.readFileSync(MOD_FILE,'utf8')); } catch(e){}
@@ -650,6 +660,13 @@ if(url === '/.well-known/assetlinks.json') {
       res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
       res.end(JSON.stringify({ ok:true }));
     } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  // GET /faq-data → returns FAQ entries for faq.html
+  if (url === '/faq-data' && req.method === 'GET') {
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(db.faq||[]));
     return;
   }
 
@@ -1551,6 +1568,33 @@ function handleModCommand(msg, ws, meta) {
     case 'clearVisits':
       db.visitLog = [];
       modLog('clearVisits', 'Site visit log cleared', by);
+      break;
+
+    case 'addFaq':
+      if(!db.faq) db.faq = [];
+      db.faq.push({ id: Date.now(), group: msg.group||'General', question: msg.question||'', answer: msg.answer||'' });
+      dirty = true;
+      broadcast({ type:'update', key:'faq', val:db.faq });
+      modLog('addFaq', `Added FAQ: "${msg.question}"`, by);
+      break;
+
+    case 'editFaq':
+      if(db.faq) {
+        const fi = db.faq.findIndex(f=>f.id==target);
+        if(fi>=0) db.faq[fi] = { ...db.faq[fi], group:msg.group||db.faq[fi].group, question:msg.question||db.faq[fi].question, answer:msg.answer||db.faq[fi].answer };
+        dirty = true;
+        broadcast({ type:'update', key:'faq', val:db.faq });
+        modLog('editFaq', `Edited FAQ: "${msg.question}"`, by);
+      }
+      break;
+
+    case 'deleteFaq':
+      if(db.faq) {
+        db.faq = db.faq.filter(f=>f.id!=target);
+        dirty = true;
+        broadcast({ type:'update', key:'faq', val:db.faq });
+        modLog('deleteFaq', `Deleted FAQ ID ${target}`, by);
+      }
       break;
   }
 

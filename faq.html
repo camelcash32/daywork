@@ -53,64 +53,7 @@ footer a:hover{color:#f0ede8}
 <div class="container">
   <h1>Frequently Asked Questions</h1>
   <p class="sub">Everything you need to know about GoDayWork.</p>
-
-  <div class="faq-group">
-    <div class="faq-group-title">General</div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">Is it free to sign up? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">Yes, signing up on GoDayWork is always free for both hirers and workers. There are no monthly fees or subscriptions.</div>
-    </div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">How do I contact support? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">Email us at <strong style="color:#f0ede8">contact.godaywork@gmail.com</strong> and we'll get back to you as soon as possible.</div>
-    </div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">How long do job posts last? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">Job posts expire after 24 hours. This keeps the platform focused on same-day and next-day gigs and ensures listings stay fresh and relevant.</div>
-    </div>
-  </div>
-
-  <div class="faq-group">
-    <div class="faq-group-title">For Workers</div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">Do I need experience to find work? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">No experience required. Browse jobs near your ZIP code, apply with one tap, and show up ready to work. No resume, no interview.</div>
-    </div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">How fast do I get paid? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">Once the hirer marks the job complete, funds are processed through Stripe and typically deposited to your bank within 2 business days for free. An instant payout option is also available for a 1% fee, with funds arriving in approximately 30 minutes to an eligible debit card.</div>
-    </div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">How do I know workers are reliable? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">All workers have public ratings and reviews from past hirers. We recommend checking a worker's profile and reviews before accepting. GoDayWork does not screen or guarantee workers — it is your responsibility to choose who you hire.</div>
-    </div>
-  </div>
-
-  <div class="faq-group">
-    <div class="faq-group-title">For Hirers</div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">How much does the platform charge? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">GoDayWork charges a <strong style="color:#e8c547">7% platform fee</strong> on all job payments, paid by the hirer at checkout. There are no hidden fees. Tips are passed 100% to the worker with no platform fee.</div>
-    </div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">Is my payment secure? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">Yes. All payments are processed through <strong style="color:#f0ede8">Stripe</strong>, one of the most trusted payment platforms in the world. GoDayWork never stores your card information — all payment data is handled securely by Stripe.</div>
-    </div>
-
-    <div class="faq-item">
-      <button class="faq-q" onclick="toggle(this)">What kinds of jobs can I post? <span class="faq-arrow">▼</span></button>
-      <div class="faq-a">You can post any legal same-day gig — moving, cleaning, landscaping, yard work, construction, general labor, and more. Jobs must be honest, accurately described, and not involve illegal activity.</div>
-    </div>
-  </div>
-
+  <div id="faq-content"><div style="color:#333;padding:20px 0">Loading...</div></div>
 </div>
 
 <footer>
@@ -119,11 +62,39 @@ footer a:hover{color:#f0ede8}
 
 <script>
 function toggle(btn){
-  const item = btn.closest('.faq-item');
-  const isOpen = item.classList.contains('open');
+  const item=btn.closest('.faq-item');
+  const isOpen=item.classList.contains('open');
   document.querySelectorAll('.faq-item.open').forEach(i=>i.classList.remove('open'));
   if(!isOpen) item.classList.add('open');
 }
+
+function renderFaq(list){
+  const container=document.getElementById('faq-content');
+  if(!list||!list.length){ container.innerHTML='<div style="color:#444;padding:20px 0">No FAQ entries yet.</div>'; return; }
+  const groups=[...new Set(list.map(f=>f.group||'General'))];
+  container.innerHTML=groups.map(g=>`
+    <div class="faq-group">
+      <div class="faq-group-title">${g}</div>
+      ${list.filter(f=>(f.group||'General')===g).map(f=>`
+        <div class="faq-item">
+          <button class="faq-q" onclick="toggle(this)">${f.question} <span class="faq-arrow">▼</span></button>
+          <div class="faq-a">${f.answer}</div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+fetch('/faq-data')
+  .then(r=>r.json())
+  .then(data=>renderFaq(data))
+  .catch(()=>{
+    // Fallback if server unreachable
+    renderFaq([
+      {group:'General',question:'Is it free to sign up?',answer:'Yes, signing up on GoDayWork is always free for both hirers and workers.'},
+      {group:'General',question:'How do I contact support?',answer:'Email us at contact.godaywork@gmail.com and we\'ll get back to you as soon as possible.'},
+      {group:'For Workers',question:'Do I need experience to find work?',answer:'No experience required. Browse jobs near your ZIP code, apply with one tap, and show up ready to work.'},
+      {group:'For Hirers',question:'How much does the platform charge?',answer:'GoDayWork charges a 7% platform fee on all job payments, paid by the hirer at checkout.'}
+    ]);
+  });
 </script>
 </body>
 </html>
