@@ -1240,6 +1240,10 @@ wss.on('connection', (ws, req) => {
       if(msg.type === 'identify' && msg.user) {
         meta.user = msg.user;
         clientMeta.set(ws, meta);
+        // Save last known IP on user record
+        const visitorIp2 = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || req.socket.remoteAddress;
+        const uIdx = (db.users||[]).findIndex(u=>u.name===msg.user);
+        if(uIdx>=0){ db.users[uIdx].lastIp = visitorIp2; dirty=true; }
         // Check if user is banned
         if(isUserBanned(msg.user)) {
           ws.send(JSON.stringify({ type:'banned', reason:'Your account has been banned.' }));
