@@ -329,6 +329,18 @@ if(url === '/.well-known/assetlinks.json') {
     // Track site visit
     if(!db.visits) db.visits = 0;
     db.visits++;
+    if(!db.visitLog) db.visitLog = [];
+    const visitorIp = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
+    fetch(`http://ip-api.com/json/${visitorIp}?fields=city,regionName,country,query`)
+      .then(r=>r.json()).then(geo=>{
+        db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:geo.city||'',region:geo.regionName||'',country:geo.country||''});
+        if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+        dirty=true;
+      }).catch(()=>{
+        db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:'',region:'',country:''});
+        if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+        dirty=true;
+      });
     dirty = true;
     res.writeHead(302, {'Location':'/landing'});
     res.end();

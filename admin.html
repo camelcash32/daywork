@@ -231,6 +231,7 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
           <div class="stat"><div class="sv g" id="s-job">0</div><div class="sl">ACTIVE JOBS</div></div>
           <div class="stat"><div class="sv p" id="s-usr">0</div><div class="sl">USERS</div></div>
           <div class="stat"><div class="sv g" id="s-signup">0</div><div class="sl">TOTAL SIGNUPS</div></div>
+          <div class="stat"><div class="sv y" id="s-visits">0</div><div class="sl">SITE VIEWS</div></div>
           <div class="stat"><div class="sv r" id="s-rep">0</div><div class="sl">OPEN REPORTS</div></div>
           <div class="stat"><div class="sv y" id="s-flg">0</div><div class="sl">FLAGGED JOBS</div></div>
           <div class="stat"><div class="sv r" id="s-ban">0</div><div class="sl">TOTAL BANS</div></div>
@@ -239,7 +240,10 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
           <div class="ctit" style="margin-bottom:12px">⚙️ Settings</div>
           <div class="sw"><div class="swt" id="sw-af" onclick="modCmd('toggleAutoFlag','',{})"><div class="swth"></div></div><span style="font-size:13px">Auto-flag jobs with banned words</span></div>
         </div>
-        <div class="card"><div class="ctit" style="margin-bottom:10px">🕐 Recent Actions</div><div id="R-log"></div></div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="ctit" style="margin-bottom:14px">🌍 Recent Site Visits</div>
+          <div id="R-visits" style="max-height:340px;overflow-y:auto"></div>
+        </div>
       </div>
 
       <div class="pg" id="p-log">
@@ -526,7 +530,7 @@ function go(pg){
   if(pg==='ref') loadRefunds();
 }
 
-function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderRecentLog(); updBadges(); updSw(); }
+function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderVisits(); updBadges(); updSw(); }
 
 function rStats(){
   const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
@@ -535,6 +539,7 @@ function rStats(){
   (db.users||[]).forEach(u=>{ if(u.name) names.add(u.name); });
   st('s-job',(db.jobs||[]).length); st('s-usr',names.size); st('s-rep',pr);
   st('s-signup', db.totalSignups||0);
+  st('s-visits', db.visits||0);
   st('s-flg',(mod.flaggedJobs||[]).length); st('s-ban',(mod.bannedUsers||[]).length+(mod.bannedIPs||[]).length);
 }
 function updBadges(){
@@ -628,7 +633,24 @@ function clearErrors(){ modCmd('clearErrors','',{}); fErr=[]; renderErrors(); to
 
 function renderRecentLog(){
   const el=document.getElementById('R-log');
-  el.innerHTML=fLog.length?fLog.slice(0,8).map(l=>lRow(l)).join(''):emp('📜','No actions yet');
+  if(el) el.innerHTML=fLog.length?fLog.slice(0,8).map(l=>lRow(l)).join(''):emp('📜','No actions yet');
+}
+function renderVisits(){
+  const el=document.getElementById('R-visits');
+  if(!el) return;
+  const log=db.visitLog||[];
+  if(!log.length){ el.innerHTML=emp('👁','No visits recorded yet'); return; }
+  el.innerHTML=log.slice(0,50).map(v=>{
+    const d=new Date(v.time);
+    const date=d.toLocaleDateString();
+    const time=d.toLocaleTimeString();
+    const loc=[v.city,v.region,v.country].filter(Boolean).join(', ')||'Unknown location';
+    return `<div class="le">
+      <span class="lt">${date}<br>${time}</span>
+      <span style="font-size:13px;color:#f0ede8;flex:1">📍 ${loc}</span>
+      <span style="font-size:11px;color:var(--muted)">${v.ip||''}</span>
+    </div>`;
+  }).join('');
 }
 function renderLog(){
   const el=document.getElementById('F-log');
