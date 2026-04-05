@@ -322,25 +322,13 @@ function renderFaqModal(list){
   const groups=[...new Set(list.map(f=>f.group||'General'))];
   body.innerHTML=groups.map(g=>`
     <div style="margin-bottom:28px">
-      <div style="font-size:10px;font-weight:700;letter-spacing:.15em;color:#e8c547;margin-bottom:12px;text-transform:uppercase">${g}</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:.15em;color:#e8c547;margin-bottom:14px;text-transform:uppercase">${g}</div>
       ${list.filter(f=>(f.group||'General')===g).map(f=>`
-        <div class="faq-mi" style="border:1px solid #1a1a1a;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#0f0f0f">
-          <button onclick="toggleFaqM(this)" style="width:100%;background:none;border:none;color:#f0ede8;font-family:inherit;font-size:14px;font-weight:700;text-align:left;padding:16px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">
-            ${f.question}<span style="color:#555;font-size:13px;flex-shrink:0;transition:transform .2s">▼</span>
-          </button>
-          <div class="faq-ma" style="display:none;padding:0 18px 16px;font-size:13px;color:#777;line-height:1.7">${f.answer}</div>
+        <div style="border:1px solid #1a1a1a;border-radius:10px;margin-bottom:10px;background:#0f0f0f;padding:16px 18px">
+          <div style="font-size:14px;font-weight:700;color:#f0ede8;margin-bottom:8px">${f.question}</div>
+          <div style="font-size:13px;color:#777;line-height:1.7">${f.answer}</div>
         </div>`).join('')}
     </div>`).join('');
-}
-function toggleFaqM(btn){
-  const item=btn.closest('.faq-mi');
-  const ans=item.querySelector('.faq-ma');
-  const arr=btn.querySelector('span');
-  const isOpen=ans.style.display==='block';
-  document.querySelectorAll('.faq-ma').forEach(a=>a.style.display='none');
-  document.querySelectorAll('.faq-mi button span').forEach(s=>{s.style.transform='';s.style.color='#555';});
-  document.querySelectorAll('.faq-mi button').forEach(b=>b.style.color='#f0ede8');
-  if(!isOpen){ans.style.display='block';arr.style.transform='rotate(180deg)';arr.style.color='#e8c547';btn.style.color='#e8c547';}
 }
 </script>
 </body>
