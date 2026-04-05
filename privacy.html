@@ -33,7 +33,7 @@ footer{border-top:1px solid #111;padding:24px;text-align:center;font-size:12px;c
       <svg width="14" height="14" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
       Follow us
     </a>
-    <a href="/faq" style="display:inline-flex;align-items:center;gap:5px;color:#e8c547;font-size:12px;font-weight:700;text-decoration:none;border:1px solid rgba(232,197,71,.3);border-radius:8px;padding:5px 11px;">❓ FAQ</a>
+    <button onclick="openFaqModal()" style="display:inline-flex;align-items:center;gap:5px;color:#e8c547;font-size:12px;font-weight:700;background:none;border:1px solid rgba(232,197,71,.3);border-radius:8px;padding:5px 11px;cursor:pointer;font-family:inherit">❓ FAQ</button>
   </div>
   <a class="nav-link" href="/">← Back to App</a>
 </nav>
@@ -125,5 +125,20 @@ footer{border-top:1px solid #111;padding:24px;text-align:center;font-size:12px;c
   </p>
   <p style="font-size:12px;color:#444">© 2026 ⚡ GoDayWork. All rights reserved.</p>
 </footer>
+<div id="faq-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;padding:20px;overflow-y:auto;backdrop-filter:blur(4px)" onclick="if(event.target===this)closeFaqModal()">
+  <div style="background:#111;border:1px solid #222;border-radius:16px;max-width:640px;width:100%;margin:40px auto;padding:32px 28px;position:relative">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+      <div><div style="font-size:11px;font-weight:700;letter-spacing:.15em;color:#e8c547;margin-bottom:6px">GODAYWORK</div><h2 style="font-size:22px;font-weight:900">Frequently Asked Questions</h2></div>
+      <button onclick="closeFaqModal()" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;border-radius:8px;width:36px;height:36px;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+    </div>
+    <div id="faq-modal-body"><div style="color:#444;padding:20px 0;text-align:center">Loading...</div></div>
+  </div>
+</div>
+<script>
+function openFaqModal(){document.getElementById('faq-modal').style.display='block';document.body.style.overflow='hidden';if(!document.getElementById('faq-modal-body').dataset.loaded){fetch('/faq-data').then(r=>r.json()).then(renderFaqModal).catch(()=>renderFaqModal([]));}}
+function closeFaqModal(){document.getElementById('faq-modal').style.display='none';document.body.style.overflow='';}
+function renderFaqModal(list){const body=document.getElementById('faq-modal-body');body.dataset.loaded='1';if(!list||!list.length){body.innerHTML='<div style="color:#444;text-align:center;padding:20px">No FAQ entries yet.</div>';return;}const groups=[...new Set(list.map(f=>f.group||'General'))];body.innerHTML=groups.map(g=>`<div style="margin-bottom:28px"><div style="font-size:10px;font-weight:700;letter-spacing:.15em;color:#e8c547;margin-bottom:12px;text-transform:uppercase">${g}</div>${list.filter(f=>(f.group||'General')===g).map(f=>`<div class="faq-mi" style="border:1px solid #1a1a1a;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#0f0f0f"><button onclick="toggleFaqM(this)" style="width:100%;background:none;border:none;color:#f0ede8;font-family:inherit;font-size:14px;font-weight:700;text-align:left;padding:16px 18px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px">${f.question}<span style="color:#555;font-size:13px;flex-shrink:0">▼</span></button><div class="faq-ma" style="display:none;padding:0 18px 16px;font-size:13px;color:#777;line-height:1.7">${f.answer}</div></div>`).join('')}</div>`).join('');}
+function toggleFaqM(btn){const item=btn.closest('.faq-mi');const ans=item.querySelector('.faq-ma');const arr=btn.querySelector('span');const isOpen=ans.style.display==='block';document.querySelectorAll('.faq-ma').forEach(a=>a.style.display='none');document.querySelectorAll('.faq-mi button span').forEach(s=>{s.style.transform='';s.style.color='#555';});document.querySelectorAll('.faq-mi button').forEach(b=>b.style.color='#f0ede8');if(!isOpen){ans.style.display='block';arr.style.transform='rotate(180deg)';arr.style.color='#e8c547';btn.style.color='#e8c547';}}
+</script>
 </body>
 </html>
