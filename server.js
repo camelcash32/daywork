@@ -906,6 +906,70 @@ if(url === '/.well-known/assetlinks.json') {
     return;
   }
 
+  // POST /instant-payout { jobId, workerName } → instant payout from worker's Stripe Connect account
+  if (url === '/instant-payout' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { jobId, workerName } = JSON.parse(body);
+
+        // Find captured payment for this job
+        const payment = (db.payments||[]).find(p =>
+          String(p.jobId) === String(jobId) &&
+          p.workerName === workerName &&
+          p.status === 'captured' &&
+          !p.instantPayoutId
+        );
+        if (!payment) {
+          res.writeHead(404, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error: 'No released payment found, or instant payout already requested.' })); return;
+        }
+
+        // Find worker's Stripe Connect account
+        const workerUser = (db.users||[]).find(u => u.name === workerName);
+        if (!workerUser?.stripeConnectId || workerUser.stripeConnectStatus !== 'active') {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error: 'Worker payout account not set up or not active.' })); return;
+        }
+
+        // Get available balance in worker's connected account
+        const balance = await stripe.balance.retrieve({ stripeAccount: workerUser.stripeConnectId });
+        const available = (balance.available||[]).find(b => b.currency === 'usd');
+        if (!available || available.amount <= 0) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error: 'No available balance yet. The payment may still be processing — try again in a few minutes.' })); return;
+        }
+
+        // 1% instant payout fee, minimum $0.50
+        const grossAmount = available.amount;
+        const fee = Math.max(Math.round(grossAmount * 0.01), 50);
+        const netAmount = grossAmount - fee;
+
+        // Create instant payout
+        const payout = await stripe.payouts.create({
+          amount: netAmount,
+          currency: 'usd',
+          method: 'instant',
+        }, { stripeAccount: workerUser.stripeConnectId });
+
+        payment.instantPayoutId = payout.id;
+        payment.instantPayoutAt = new Date().toISOString();
+        payment.instantPayoutFee = fee;
+        saveDB();
+
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true, payoutId: payout.id, netAmount, fee }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // ── STRIPE PAYMENT ──────────────────────────────────────────
   // POST /create-payment → create Stripe Checkout Session
   if (url === '/create-payment' && req.method === 'POST') {

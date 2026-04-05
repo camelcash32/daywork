@@ -1308,7 +1308,7 @@ function renderApplicants(){
           } catch(e2){showToast("⚠️ Could not release payment — marking done anyway.");}
           jobs=jobs.map(j=>j.id!==job.id?j:{...j,
             completedPairs:j.completedPairs.map(p=>
-              p.workerName===app.name&&p.poster===j.postedBy&&!p.done?{...p,done:true,doneAt:Date.now()}:p
+              p.workerName===app.name&&p.poster===j.postedBy&&!p.done?{...p,done:true,doneAt:Date.now(),paymentReleased:true}:p
             )
           });
           save("jobs",jobs);
@@ -2105,6 +2105,36 @@ function renderDetail(){
           rerender();
           setTimeout(()=>showRateModal2(job.postedBy,job.id),600);
         },"✅ Mark Job Complete"));
+      }
+      // Get Paid button — shown after hirer releases payment
+      const myReleasedPair = (job.completedPairs||[]).find(p=>p.workerName===U.name&&p.done&&p.paymentReleased&&!p.payoutChosen);
+      if(myReleasedPair && U.stripeConnectStatus==='active'){
+        const payBox=div(null,{background:"rgba(34,197,94,.06)",border:"1px solid rgba(34,197,94,.25)",borderRadius:"12px",padding:"14px",marginBottom:"8px"});
+        ap(payBox,ap(el("p",null,{fontSize:"13px",fontWeight:"700",color:"#22c55e",marginBottom:"10px"}),"💵 Your payment is ready!"));
+        ap(payBox,div(null,{display:"flex",gap:"8px",flexWrap:"wrap"},
+          btn(null,{background:"#22c55e",color:"#000",border:"none",borderRadius:"9px",padding:"10px 16px",fontSize:"13px",fontWeight:"700",cursor:"pointer",fontFamily:"inherit"},async(e)=>{
+            e.target.disabled=true; e.target.textContent="⏳ Requesting…";
+            try {
+              const r=await fetch('/instant-payout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:job.id,workerName:U.name})});
+              const d=await r.json();
+              if(d.ok){
+                showToast("⚡ Instant payout requested! Funds arrive in ~30 min.");
+                jobs=jobs.map(j=>j.id!==job.id?j:{...j,completedPairs:j.completedPairs.map(p=>p.workerName===U.name&&p.poster===j.postedBy&&p.done?{...p,payoutChosen:'instant'}:p)});
+                save("jobs",jobs); rerender();
+              } else { showToast("❌ "+(d.error||"Instant payout failed. Your debit card may not support it.")); e.target.disabled=false; e.target.textContent="⚡ Instant (1% fee)"; }
+            } catch(ex){ showToast("❌ Network error. Try again."); e.target.disabled=false; e.target.textContent="⚡ Instant (1% fee)"; }
+          },"⚡ Instant (1% fee)"),
+          btn(null,{background:"none",color:"#888",border:"1px solid #333",borderRadius:"9px",padding:"10px 16px",fontSize:"13px",cursor:"pointer",fontFamily:"inherit"},()=>{
+            jobs=jobs.map(j=>j.id!==job.id?j:{...j,completedPairs:j.completedPairs.map(p=>p.workerName===U.name&&p.poster===j.postedBy&&p.done?{...p,payoutChosen:'standard'}:p)});
+            save("jobs",jobs); rerender();
+            showToast("✅ Standard payout selected — funds arrive in ~2 business days.");
+          },"🏦 Standard (Free, ~2 days)")
+        ));
+        ap(inner,payBox);
+      } else if(myReleasedPair && U.stripeConnectStatus!=='active'){
+        ap(inner,div(null,{background:"rgba(245,158,11,.07)",border:"1px solid rgba(245,158,11,.25)",borderRadius:"10px",padding:"12px 14px",marginBottom:"8px"},
+          ap(el("span",null,{fontSize:"13px",color:"#f59e0b"}),"💵 Payment released! Set up your payout account in Settings to receive funds.")
+        ));
       }
       ap(inner,btn("btn",{background:"rgba(232,197,71,.08)",border:"1px solid rgba(232,197,71,.3)",color:"#e8c547",padding:"12px",textAlign:"left",marginBottom:"8px"},
         ()=>showChatModal(job.id,job.title,U.name,U.name),
