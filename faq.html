@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>FAQ — GoDayWork</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#080808;color:#f0ede8;font-family:'Segoe UI',Arial,sans-serif;line-height:1.7}
+nav{position:sticky;top:0;background:rgba(8,8,8,.95);backdrop-filter:blur(12px);
+  border-bottom:1px solid #111;padding:0 24px;height:56px;display:flex;
+  align-items:center;justify-content:space-between;z-index:100;gap:12px}
+.brand{font-size:15px;font-weight:900;color:#e8c547;text-decoration:none}
+.nav-mid{display:flex;align-items:center;gap:10px}
+.nav-link{color:#555;font-size:13px;text-decoration:none;transition:color .2s}
+.nav-link:hover{color:#f0ede8}
+.fb-nav{display:inline-flex;align-items:center;gap:6px;color:#1877f2;font-size:12px;font-weight:700;text-decoration:none;border:1px solid rgba(24,119,242,.3);border-radius:8px;padding:5px 11px;transition:all .2s}
+.fb-nav:hover{background:rgba(24,119,242,.1)}
+.faq-link{display:inline-flex;align-items:center;gap:5px;color:#e8c547;font-size:12px;font-weight:700;text-decoration:none;border:1px solid rgba(232,197,71,.3);border-radius:8px;padding:5px 11px;transition:all .2s}
+.faq-link:hover{background:rgba(232,197,71,.08)}
+.container{max-width:720px;margin:0 auto;padding:48px 24px 80px}
+h1{font-size:32px;font-weight:900;margin-bottom:8px}
+.sub{color:#555;font-size:15px;margin-bottom:48px}
+.faq-group{margin-bottom:40px}
+.faq-group-title{font-size:11px;font-weight:700;letter-spacing:.15em;color:#e8c547;margin-bottom:16px;text-transform:uppercase}
+.faq-item{border:1px solid #1a1a1a;border-radius:12px;margin-bottom:10px;overflow:hidden;background:#111}
+.faq-q{width:100%;background:none;border:none;color:#f0ede8;font-family:inherit;font-size:15px;font-weight:700;text-align:left;padding:18px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.faq-q:hover{background:#161616}
+.faq-arrow{font-size:14px;color:#555;transition:transform .2s;flex-shrink:0}
+.faq-a{display:none;padding:0 20px 18px;font-size:14px;color:#888;line-height:1.7}
+.faq-item.open .faq-a{display:block}
+.faq-item.open .faq-arrow{transform:rotate(180deg);color:#e8c547}
+.faq-item.open .faq-q{color:#e8c547}
+footer{border-top:1px solid #111;padding:24px;text-align:center;font-size:12px;color:#333}
+footer a{color:#555;text-decoration:none}
+footer a:hover{color:#f0ede8}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="brand" href="/">⚡ GoDayWork</a>
+  <div class="nav-mid">
+    <a href="https://www.facebook.com/profile.php?id=61585294792181" target="_blank" class="fb-nav">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+      Follow us
+    </a>
+    <a class="faq-link" href="/faq">❓ FAQ</a>
+  </div>
+  <a class="nav-link" href="/">← Back to App</a>
+</nav>
+
+<div class="container">
+  <h1>Frequently Asked Questions</h1>
+  <p class="sub">Everything you need to know about GoDayWork.</p>
+
+  <div class="faq-group">
+    <div class="faq-group-title">General</div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">Is it free to sign up? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">Yes, signing up on GoDayWork is always free for both hirers and workers. There are no monthly fees or subscriptions.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">How do I contact support? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">Email us at <strong style="color:#f0ede8">contact.godaywork@gmail.com</strong> and we'll get back to you as soon as possible.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">How long do job posts last? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">Job posts expire after 24 hours. This keeps the platform focused on same-day and next-day gigs and ensures listings stay fresh and relevant.</div>
+    </div>
+  </div>
+
+  <div class="faq-group">
+    <div class="faq-group-title">For Workers</div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">Do I need experience to find work? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">No experience required. Browse jobs near your ZIP code, apply with one tap, and show up ready to work. No resume, no interview.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">How fast do I get paid? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">Once the hirer marks the job complete, funds are processed through Stripe and typically deposited to your bank within 2 business days for free. An instant payout option is also available for a 1% fee, with funds arriving in approximately 30 minutes to an eligible debit card.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">How do I know workers are reliable? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">All workers have public ratings and reviews from past hirers. We recommend checking a worker's profile and reviews before accepting. GoDayWork does not screen or guarantee workers — it is your responsibility to choose who you hire.</div>
+    </div>
+  </div>
+
+  <div class="faq-group">
+    <div class="faq-group-title">For Hirers</div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">How much does the platform charge? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">GoDayWork charges a <strong style="color:#e8c547">7% platform fee</strong> on all job payments, paid by the hirer at checkout. There are no hidden fees. Tips are passed 100% to the worker with no platform fee.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">Is my payment secure? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">Yes. All payments are processed through <strong style="color:#f0ede8">Stripe</strong>, one of the most trusted payment platforms in the world. GoDayWork never stores your card information — all payment data is handled securely by Stripe.</div>
+    </div>
+
+    <div class="faq-item">
+      <button class="faq-q" onclick="toggle(this)">What kinds of jobs can I post? <span class="faq-arrow">▼</span></button>
+      <div class="faq-a">You can post any legal same-day gig — moving, cleaning, landscaping, yard work, construction, general labor, and more. Jobs must be honest, accurately described, and not involve illegal activity.</div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <a href="/landing">Home</a> · <a href="/terms">Terms of Service</a> · <a href="/privacy">Privacy Policy</a> · <a href="mailto:contact.godaywork@gmail.com">Contact</a>
+</footer>
+
+<script>
+function toggle(btn){
+  const item = btn.closest('.faq-item');
+  const isOpen = item.classList.contains('open');
+  document.querySelectorAll('.faq-item.open').forEach(i=>i.classList.remove('open'));
+  if(!isOpen) item.classList.add('open');
+}
+</script>
+</body>
+</html>
