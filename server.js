@@ -1483,6 +1483,11 @@ function handleModCommand(msg, ws, meta) {
       mod.autoFlag = !mod.autoFlag;
       modLog('toggleAutoFlag', `Auto-flag ${mod.autoFlag?'enabled':'disabled'}`, by);
       break;
+
+    case 'clearVisits':
+      db.visitLog = [];
+      modLog('clearVisits', 'Site visit log cleared', by);
+      break;
   }
 
   saveMod();

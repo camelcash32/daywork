@@ -240,8 +240,11 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
           <div class="ctit" style="margin-bottom:12px">⚙️ Settings</div>
           <div class="sw"><div class="swt" id="sw-af" onclick="modCmd('toggleAutoFlag','',{})"><div class="swth"></div></div><span style="font-size:13px">Auto-flag jobs with banned words</span></div>
         </div>
-        <div class="card" style="margin-bottom:14px">
-          <div class="ctit" style="margin-bottom:14px">🌍 Recent Site Visits</div>
+        <div class="card" style="margin-bottom:14px;max-width:560px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div class="ctit" style="margin:0">🌍 Recent Site Visits</div>
+            <button onclick="clearVisits()" style="background:none;border:1px solid #333;color:#888;border-radius:8px;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit">Clear</button>
+          </div>
           <div id="R-visits" style="max-height:340px;overflow-y:auto"></div>
         </div>
       </div>
@@ -653,6 +656,10 @@ function renderVisits(){
       <span style="font-size:11px;color:var(--muted)">${v.ip||''}</span>
     </div>`;
   }).join('');
+}
+function clearVisits(){
+  if(!confirm('Clear all visit history?')) return;
+  modCmd('clearVisits','',{});
 }
 function renderLog(){
   const el=document.getElementById('F-log');
