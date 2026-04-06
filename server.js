@@ -712,6 +712,32 @@ if(url === '/.well-known/assetlinks.json') {
     return;
   }
 
+  // GET /public-jobs → returns active non-expired jobs for landing page (no private data)
+  if (url === '/public-jobs' && req.method === 'GET') {
+    const now = Date.now();
+    const publicJobs = (db.jobs||[])
+      .filter(j => !j.expiresAt || j.expiresAt > now)
+      .slice(0, 10)
+      .map(j => ({
+        id: j.id,
+        title: j.title,
+        category: j.category,
+        pay: j.pay,
+        payAmount: j.payAmount,
+        payType: j.payType,
+        payScope: j.payScope,
+        location: j.location,
+        duration: j.duration,
+        slots: j.slots,
+        filled: j.filled||0,
+        urgent: j.urgent||false,
+        postedAt: j.postedAt||j.id
+      }));
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(publicJobs));
+    return;
+  }
+
   // GET /faq-data → returns FAQ entries for faq.html
   if (url === '/faq-data' && req.method === 'GET') {
     res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});

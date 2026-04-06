@@ -21,11 +21,42 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:0 24px;height:56px;
 .nav-btn{background:#e8c547;color:#0f0f0f;border:none;border-radius:8px;
   padding:8px 20px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .2s}
 .nav-btn:hover{background:#f0d060}
-.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:80px 24px 60px;text-align:center;position:relative;overflow:hidden}
+.hero{min-height:100vh;display:grid;grid-template-columns:1fr minmax(0,660px) 1fr;
+  align-items:center;padding:80px 20px 60px;position:relative;overflow:hidden;gap:0}
 .hero::before{content:'';position:absolute;width:700px;height:700px;
   background:radial-gradient(circle,rgba(232,197,71,.05) 0%,transparent 70%);
   top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.hero-left-col{display:flex;align-items:center;justify-content:flex-end;padding-right:24px}
+.hero-right-col{display:flex;align-items:center;justify-content:flex-start;padding-left:24px}
+.hero-center-col{display:flex;flex-direction:column;align-items:center;text-align:center;z-index:2}
+/* floating job cards */
+.hero-job-card{background:#111;border:1px solid #1e1e1e;border-radius:16px;padding:18px;
+  width:210px;box-shadow:0 20px 60px rgba(0,0,0,.5);transition:transform .3s;cursor:default}
+.hero-job-card.tilt-l{transform:rotate(-3deg)}.hero-job-card.tilt-l:hover{transform:rotate(0deg) scale(1.02)}
+.hero-job-card.tilt-r{transform:rotate(3deg)}.hero-job-card.tilt-r:hover{transform:rotate(0deg) scale(1.02)}
+.hero-job-card.urgent-card{border-color:rgba(239,68,68,.3)}
+.hc-urgent{display:inline-block;background:rgba(239,68,68,.12);color:#ef4444;
+  border:1px solid rgba(239,68,68,.25);border-radius:999px;font-size:9px;font-weight:700;
+  padding:2px 7px;margin-bottom:8px;letter-spacing:.05em}
+.hc-cat{font-size:9px;font-weight:700;letter-spacing:.12em;color:#555;text-transform:uppercase;margin-bottom:7px}
+.hc-title{font-size:13px;font-weight:800;color:#f0ede8;margin-bottom:4px;line-height:1.3}
+.hc-loc{font-size:11px;color:#444;margin-bottom:10px}
+.hc-pay{font-size:22px;font-weight:900;color:#e8c547;margin-bottom:2px}
+.hc-pay-sub{font-size:10px;color:#555;margin-bottom:10px}
+.hc-pills{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.hc-pill{background:#1a1a1a;border-radius:999px;padding:3px 8px;font-size:10px;color:#555}
+.hc-footer{display:flex;align-items:center;justify-content:space-between;
+  padding-top:10px;border-top:1px solid #1a1a1a}
+.hc-avatar{width:22px;height:22px;border-radius:50%;background:#1a1a1a;
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#555}
+.hc-name{font-size:10px;color:#555;filter:blur(4px);user-select:none;margin-left:5px}
+.hc-apply{background:#e8c547;color:#0f0f0f;border:none;border-radius:6px;
+  padding:5px 10px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit}
+@media(max-width:860px){
+  .hero{grid-template-columns:1fr;padding:80px 24px 60px}
+  .hero-left-col,.hero-right-col{display:none}
+  .hero-center-col{text-align:center;align-items:center}
+}
 .hero-tag{font-size:11px;font-weight:700;letter-spacing:.2em;color:#e8c547;
   background:rgba(232,197,71,.1);border:1px solid rgba(232,197,71,.2);
   border-radius:999px;padding:4px 14px;margin-bottom:20px;display:inline-block}
@@ -125,23 +156,34 @@ footer{border-top:1px solid #111;padding:24px;text-align:center;font-size:12px;c
 </nav>
 
 <section class="hero">
-  <span class="hero-tag">SAME-DAY GIGS · LOCAL WORKERS</span>
-  <h1 class="hero-title">Find Work.<br>Or Find <span>Help.</span><br>Today.</h1>
-  <p class="hero-sub">Post a local gig in minutes — moving, yard work, cleaning, and more. Or pick up a job near you and get paid same day.</p>
 
-  <div class="video-wrap">
-    <video id="promoVid" preload="auto" playsinline poster="">
-      <source src="/promo-video" type="video/mp4"/>
-    </video>
-    <div class="video-overlay" id="overlay" onclick="playVideo()">
-      <div class="play-btn" id="playPauseBtn"><div class="play-icon"></div></div>
+  <!-- LEFT JOB CARD -->
+  <div class="hero-left-col"><div id="hero-card-left"></div></div>
+
+  <!-- CENTER -->
+  <div class="hero-center-col">
+    <span class="hero-tag">SAME-DAY GIGS · LOCAL WORKERS</span>
+    <h1 class="hero-title">Find Work.<br>Or Find <span>Help.</span><br>Today.</h1>
+    <p class="hero-sub">Post a local gig in minutes — moving, yard work, cleaning, and more. Or pick up a job near you and get paid same day.</p>
+
+    <div class="video-wrap">
+      <video id="promoVid" preload="auto" playsinline poster="">
+        <source src="/promo-video" type="video/mp4"/>
+      </video>
+      <div class="video-overlay" id="overlay" onclick="playVideo()">
+        <div class="play-btn" id="playPauseBtn"><div class="play-icon"></div></div>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <button class="btn-hire" onclick="goApp('poster')">🏢 Post a Job</button>
+      <button class="btn-find" onclick="goApp('seeker')">🔍 Find Work</button>
     </div>
   </div>
 
-  <div class="cta-row">
-    <button class="btn-hire" onclick="goApp('poster')">🏢 Post a Job</button>
-    <button class="btn-find" onclick="goApp('seeker')">🔍 Find Work</button>
-  </div>
+  <!-- RIGHT JOB CARD -->
+  <div class="hero-right-col"><div id="hero-card-right"></div></div>
+
 </section>
 
 <div class="stats-bar">
@@ -288,6 +330,47 @@ function goApp(mode){
   try { sessionStorage.setItem('_startSignup', '1'); } catch(e) {}
   window.location.href = '/app';
 }
+
+// ── Live job cards ────────────────────────────────────────────
+function buildHeroCard(job, side){
+  const isUrgent = job.urgent;
+  const payLabel = job.pay || ('$'+(job.payAmount||'?')+(job.payType==='hourly'?'/hr':' flat')+(job.payScope?' · '+job.payScope:''));
+  const initial = 'H'; // always show a generic initial — name is blurred
+  const card = document.createElement('div');
+  card.className='hero-job-card '+(side==='left'?'tilt-l':'tilt-r')+(isUrgent?' urgent-card':'');
+  card.innerHTML=`
+    ${isUrgent?'<div class="hc-urgent">🔥 URGENT</div>':''}
+    <div class="hc-cat">${job.category||'General Labor'}</div>
+    <div class="hc-title">${job.title}</div>
+    <div class="hc-loc">📍 ${job.location||'Local'}</div>
+    <div class="hc-pay">${job.payAmount?'$'+parseFloat(job.payAmount).toFixed(0):job.pay}</div>
+    <div class="hc-pay-sub">${job.payType==='hourly'?'per hour':'flat rate'}${job.payScope?' · '+job.payScope:''}</div>
+    <div class="hc-pills">
+      ${job.duration?'<span class="hc-pill">⏱ '+job.duration+'</span>':''}
+      <span class="hc-pill">📅 Today</span>
+    </div>
+    <div class="hc-footer">
+      <div style="display:flex;align-items:center">
+        <div class="hc-avatar">${initial}</div>
+        <div class="hc-name">Anonymous</div>
+      </div>
+      <button class="hc-apply" onclick="goApp('seeker')">Apply →</button>
+    </div>`;
+  return card;
+}
+
+function loadHeroJobs(){
+  fetch('/public-jobs').then(r=>r.json()).then(jobs=>{
+    const left=document.getElementById('hero-card-left');
+    const right=document.getElementById('hero-card-right');
+    left.innerHTML=''; right.innerHTML='';
+    if(jobs.length>=1){ left.appendChild(buildHeroCard(jobs[0],'left')); }
+    if(jobs.length>=2){ right.appendChild(buildHeroCard(jobs[1],'right')); }
+  }).catch(()=>{});
+}
+
+loadHeroJobs();
+setInterval(loadHeroJobs, 30000); // refresh every 30 seconds
 </script>
 
 <!-- FAQ MODAL -->
