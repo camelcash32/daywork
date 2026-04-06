@@ -342,6 +342,20 @@ if(url === '/manifest.json') {
     return;
   }
 
+  if(url === '/app-release-signed.apk') {
+    try {
+      const apkPath = path.join(__dirname, 'app-release-signed.apk');
+      const data = fs.readFileSync(apkPath);
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': 'attachment; filename="GoDayWork.apk"',
+        'Content-Length': data.length
+      });
+      res.end(data);
+    } catch(e) { res.writeHead(404); res.end('APK not found'); }
+    return;
+  }
+
   if(url === '/ads.txt') {
     try {
       res.writeHead(200, {'Content-Type':'text/plain','Access-Control-Allow-Origin':'*'});
