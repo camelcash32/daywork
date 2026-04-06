@@ -134,6 +134,22 @@ if ((db.totalSignups||0) < (db.users||[]).length) {
 // Demo job seeding removed — admin controls all job content
 setInterval(()=>{ if(dirty){ saveDB(); dirty=false; } }, 1000);
 
+// Prune expired jobs and worker posts every 15 minutes
+setInterval(()=>{
+  const now = Date.now();
+  const jobsBefore = (db.jobs||[]).length;
+  db.jobs = (db.jobs||[]).filter(j => !j.expiresAt || j.expiresAt > now);
+  const workersBefore = (db.workers||[]).length;
+  db.workers = (db.workers||[]).filter(p => !p.expiresAt || p.expiresAt > now);
+  const removed = (jobsBefore - db.jobs.length) + (workersBefore - (db.workers||[]).length);
+  if(removed > 0){
+    dirty = true;
+    broadcast({type:'update', key:'jobs', val:db.jobs});
+    broadcast({type:'update', key:'workers', val:db.workers});
+    console.log(`[PRUNE] Removed ${jobsBefore - db.jobs.length} expired jobs, ${workersBefore - (db.workers||[]).length} expired worker posts`);
+  }
+}, 15 * 60 * 1000);
+
 // Save data before Railway shuts down the container
 process.on('SIGTERM', () => {
   console.log('[SHUTDOWN] SIGTERM received — saving data...');
