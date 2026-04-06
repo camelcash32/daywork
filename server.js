@@ -65,6 +65,37 @@ function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2
 let db  = loadDB();
 let mod = loadMod();
 
+// ── Bot detection ─────────────────────────────────────────────
+const BOT_UA_KEYWORDS = [
+  'bot','crawl','spider','slurp','feed','fetch','scan','check','monitor',
+  'google','bing','yahoo','baidu','yandex','duckduck','facebook','twitter',
+  'linkedin','whatsapp','telegram','slack','discord','pinterest','instagram',
+  'applebot','semrush','ahrefs','moz','majestic','screaming','sitebulb',
+  'pingdom','uptimerobot','statuscake','newrelic','datadog','imperva',
+  'cloudflare','archive.org','wayback','curl','wget','python-requests',
+  'axios','node-fetch','go-http','java/','httpclient','okhttp','libwww',
+  'postman','insomnia','scrapy','mechanize','phantom','headless','puppeteer',
+  'selenium','cypress','playwright','prerender','rendertron','lighthouse'
+];
+// Known data center IP prefixes (AWS, GCP, Azure, Cloudflare, etc.)
+const BOT_IP_PREFIXES = [
+  '43.130.','43.131.','43.132.','43.133.','43.134.','43.135.',  // Tencent/PingAn cloud
+  '147.182.','147.185.',                                          // DigitalOcean
+  '34.','35.','104.196.','104.197.','104.198.',                  // Google Cloud
+  '52.','54.','3.','18.','44.',                                  // AWS
+  '20.','40.','13.','51.','52.175.',                             // Azure
+  '162.158.','172.64.','172.65.','172.66.','172.67.',            // Cloudflare
+  '185.191.','185.220.',                                         // known scan ranges
+  '2003:2880:','2a06:98c0:','2606:4700:'                        // IPv6 Cloudflare/bots
+];
+function isBot(ua, ip){
+  const uaLow = ua.toLowerCase();
+  if(BOT_UA_KEYWORDS.some(k => uaLow.includes(k))) return true;
+  if(!ua || ua.trim()==='') return true; // no user agent = bot
+  if(BOT_IP_PREFIXES.some(p => ip.startsWith(p))) return true;
+  return false;
+}
+
 // ── Seed FAQ if missing from existing database ────────────────
 if(!db.faq||!db.faq.length){
   db.faq=[
@@ -352,22 +383,24 @@ if(url === '/.well-known/assetlinks.json') {
       } catch(e) { res.writeHead(500); res.end('Error'); }
       return;
     }
-    // Track site visit
-    if(!db.visits) db.visits = 0;
-    db.visits++;
-    if(!db.visitLog) db.visitLog = [];
+    // Track site visit — skip bots
     const visitorIp = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
-    fetch(`http://ip-api.com/json/${visitorIp}?fields=city,regionName,country,query`)
-      .then(r=>r.json()).then(geo=>{
-        db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:geo.city||'',region:geo.regionName||'',country:geo.country||''});
-        if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
-        dirty=true;
-      }).catch(()=>{
-        db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:'',region:'',country:''});
-        if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
-        dirty=true;
-      });
-    dirty = true;
+    if(!isBot(req.headers['user-agent']||'', visitorIp)){
+      if(!db.visits) db.visits = 0;
+      db.visits++;
+      if(!db.visitLog) db.visitLog = [];
+      fetch(`http://ip-api.com/json/${visitorIp}?fields=city,regionName,country,query`)
+        .then(r=>r.json()).then(geo=>{
+          db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:geo.city||'',region:geo.regionName||'',country:geo.country||''});
+          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+          dirty=true;
+        }).catch(()=>{
+          db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:'',region:'',country:''});
+          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+          dirty=true;
+        });
+      dirty = true;
+    }
     res.writeHead(302, {'Location':'/landing'});
     res.end();
     return;
