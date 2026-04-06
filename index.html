@@ -1218,7 +1218,17 @@ function buildPhotoUpload(){
 
 function checkProfileComplete(callback){
   U=load('currentUser',null);
-  if(U&&U.profileComplete){callback();return;}
+  if(U&&U.profileComplete===true){callback();return;}
+  if(U&&U.profileComplete==='pending'){
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)';
+    const m=document.createElement('div');
+    m.style.cssText='background:#111;border:1px solid #2a2a2a;border-radius:18px;padding:36px 28px;max-width:400px;width:100%;text-align:center';
+    m.innerHTML=`<div style="font-size:48px;margin-bottom:16px">⏳</div><div style="font-size:10px;font-weight:700;letter-spacing:.18em;color:#e8c547;margin-bottom:8px">PROFILE UNDER REVIEW</div><h3 style="font-size:20px;font-weight:900;color:#f0ede8;margin-bottom:12px">Awaiting Approval</h3><p style="font-size:13px;color:#666;line-height:1.65;margin-bottom:24px">Your profile is being reviewed by GoDayWork. You'll be able to post and apply for jobs once approved. This usually takes just a few minutes.</p><button style="background:#1a1a1a;color:#888;border:1px solid #2a2a2a;border-radius:10px;padding:11px 24px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit" onclick="this.closest('[style*=fixed]').remove()">Got it</button>`;
+    ov.appendChild(m);
+    document.body.appendChild(ov);
+    return;
+  }
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)';
   const modal=document.createElement('div');
@@ -1251,11 +1261,12 @@ function checkProfileComplete(callback){
     const usrs=load('users',[]);
     const updatedUsers=usrs.map(u=>u.id===U.id?{...u,fullName,phone,photo:photoB64,profileComplete:true}:u);
     save('users',updatedUsers);
-    U={...U,fullName,phone,photo:photoB64,profileComplete:true};
+    U={...U,fullName,phone,photo:photoB64,profileComplete:'pending'};
     save('currentUser',U);
     fetch('/register-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(U)}).catch(()=>{});
     document.body.removeChild(overlay);
-    callback();
+    // Show pending message instead of proceeding
+    checkProfileComplete(callback);
   });
 }
 
@@ -2575,6 +2586,16 @@ function wsConnect(){
           _showConn(true);
         }
 
+        if(msg.type==='profileApproved'){
+          if(U){ U={...U,profileComplete:true}; save('currentUser',U); }
+          showToast('✅ Your profile has been approved! You can now post and apply for jobs.');
+          rerender();
+        }
+        if(msg.type==='profileRejected'){
+          if(U){ U={...U,profileComplete:false,fullName:'',phone:'',photo:''}; save('currentUser',U); }
+          showToast('⚠️ '+(msg.message||'Your profile was not approved. Please resubmit.'));
+          rerender();
+        }
         if(msg.type==='update'){
           if(msg.key==='jobs' && Array.isArray(msg.val)){
             jobs = pruneExpiredJobs(initJobTimers(msg.val));
@@ -2594,6 +2615,15 @@ function wsConnect(){
                 else merged.push(su);
               });
               _lsSet('dw_users', JSON.stringify(merged));
+              // Update current user if their profile status changed
+              if(U){
+                const su = msg.val.find(u=>u.id===U.id||u.email===U.email);
+                if(su && su.profileComplete !== U.profileComplete){
+                  U={...U, profileComplete:su.profileComplete};
+                  save('currentUser',U);
+                  rerender();
+                }
+              }
             }catch(e){}
           } else if(msg.key==='bulletin' && Array.isArray(msg.val)){
             bulletinPosts = msg.val;

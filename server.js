@@ -1687,6 +1687,41 @@ function handleModCommand(msg, ws, meta) {
         modLog('deleteFaq', `Deleted FAQ ID ${target}`, by);
       }
       break;
+
+    case 'approveProfile': {
+      const u = (db.users||[]).find(u=>u.name===target);
+      if(u){
+        u.profileComplete = true;
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        // Notify the user if online
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileApproved' }));
+        });
+        modLog('approveProfile', `Approved profile for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'rejectProfile': {
+      const u = (db.users||[]).find(u=>u.name===target);
+      if(u){
+        u.profileComplete = false;
+        u.fullName = '';
+        u.phone = '';
+        u.photo = '';
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        // Notify the user if online
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: msg.reason||'Your profile was not approved. Please resubmit with a clear photo and your real full name.' }));
+        });
+        modLog('rejectProfile', `Rejected profile for "${target}"`, by);
+      }
+      break;
+    }
   }
 
   saveMod();
