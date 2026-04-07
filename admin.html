@@ -518,7 +518,7 @@ function connectWS(){
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
     if(m.type==='init'){ if(m.db)db=m.db; if(m.db&&m.db.bulletin)renderBulletin(m.db.bulletin); if(m.mod)applyMod(m.mod); rAll(); }
-    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; rAll(); }
+    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; if(m.key==='visitLog')db.visitLog=m.val; rAll(); }
     if(m.type==='modUpdate') applyMod(m.mod);
     if(m.type==='fullMod'){ mod={...mod,...m.mod}; if(m.mod.errors)fErr=m.mod.errors; if(m.mod.modLog)fLog=m.mod.modLog; rAll(); }
     if(m.type==='modLog'){ fLog=m.log||[]; fErr=m.errors||[]; rAll(); }

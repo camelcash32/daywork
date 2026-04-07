@@ -385,9 +385,26 @@ if(url === '/.well-known/assetlinks.json') {
   }
 
   if(url === '/landing' || url === '/landing.html') {
-    if(!db.visits) db.visits = 0;
-    db.visits++;
-    dirty = true;
+    // Track site visit — skip bots
+    const visitorIpL = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
+    if(!isBot(req.headers['user-agent']||'', visitorIpL)){
+      if(!db.visits) db.visits = 0;
+      db.visits++;
+      if(!db.visitLog) db.visitLog = [];
+      fetch(`http://ip-api.com/json/${visitorIpL}?fields=city,regionName,country,query`)
+        .then(r=>r.json()).then(geo=>{
+          db.visitLog.unshift({time:Date.now(),ip:visitorIpL,city:geo.city||'',region:geo.regionName||'',country:geo.country||''});
+          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+          dirty=true;
+          broadcast({type:'update', key:'visitLog', val:db.visitLog});
+        }).catch(()=>{
+          db.visitLog.unshift({time:Date.now(),ip:visitorIpL,city:'',region:'',country:''});
+          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+          dirty=true;
+          broadcast({type:'update', key:'visitLog', val:db.visitLog});
+        });
+      dirty = true;
+    }
     try {
       res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
       res.end(fs.readFileSync(path.join(__dirname,'landing.html')));
@@ -413,24 +430,7 @@ if(url === '/.well-known/assetlinks.json') {
       } catch(e) { res.writeHead(500); res.end('Error'); }
       return;
     }
-    // Track site visit — skip bots
-    const visitorIp = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
-    if(!isBot(req.headers['user-agent']||'', visitorIp)){
-      if(!db.visits) db.visits = 0;
-      db.visits++;
-      if(!db.visitLog) db.visitLog = [];
-      fetch(`http://ip-api.com/json/${visitorIp}?fields=city,regionName,country,query`)
-        .then(r=>r.json()).then(geo=>{
-          db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:geo.city||'',region:geo.regionName||'',country:geo.country||''});
-          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
-          dirty=true;
-        }).catch(()=>{
-          db.visitLog.unshift({time:Date.now(),ip:visitorIp,city:'',region:'',country:''});
-          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
-          dirty=true;
-        });
-      dirty = true;
-    }
+    // Track site visit via /landing (redirect target handles logging)
     res.writeHead(302, {'Location':'/landing'});
     res.end();
     return;
