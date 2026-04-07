@@ -970,7 +970,7 @@ function showUserProfile(name){
       ${row('Phone', u.phone||'')}
       ${row('Email', u.email||'')}
       ${row('Last IP', u.lastIp||'')}
-      ${row('Rating', r?'⭐ '+r.avg.toFixed(1)+' ('+r.count+' review'+(r.count!==1?'s':'')+')','')}
+      ${row('Rating', r?'⭐ '+r.avg.toFixed(1)+' ('+r.count+' review'+(r.count!==1?'s':'')+')':'')}
       ${row('Warnings', warned.length?warned.length+' warning(s)':'')}
       ${row('Status', banned?'🚫 Banned':'')}
     </div>
