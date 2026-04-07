@@ -385,9 +385,13 @@ if(url === '/.well-known/assetlinks.json') {
   }
 
   if(url === '/landing' || url === '/landing.html') {
-    // Track site visit — skip bots
-    const visitorIpL = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
-    if(!isBot(req.headers['user-agent']||'', visitorIpL)){
+    // Track site visit — only skip clear bots (UA check only, skip IP check to avoid false positives)
+    const visitorIpL = req.headers['cf-connecting-ip'] || (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
+    const ua = req.headers['user-agent']||'';
+    const uaLow = ua.toLowerCase();
+    const isClearBot = !ua || ua.trim()==='' || BOT_UA_KEYWORDS.some(k=>uaLow.includes(k));
+    console.log(`[VISIT] ${visitorIpL} ua="${ua.slice(0,60)}" bot=${isClearBot}`);
+    if(!isClearBot){
       if(!db.visits) db.visits = 0;
       db.visits++;
       if(!db.visitLog) db.visitLog = [];

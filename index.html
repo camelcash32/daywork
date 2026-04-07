@@ -1165,7 +1165,7 @@ function renderForm(){
         pp(null,{fontSize:"12px",color:"#555",marginBottom:"6px"},job.pay+" · "+job.date),
         // Timer badge
         div(null,{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"},
-          ap(sp(null,{fontSize:"11px",fontWeight:"700",color:tColor,background:"rgba(0,0,0,.3)",border:"1px solid "+tColor+"44",borderRadius:"999px",padding:"2px 8px"}),txt("⏱ "+tLeft)),
+          ap(sp("timer-"+job.id,{fontSize:"11px",fontWeight:"700",color:tColor,background:"rgba(0,0,0,.3)",border:"1px solid "+tColor+"44",borderRadius:"999px",padding:"2px 8px"}),txt("⏱ "+tLeft)),
           pend>0?sp(null,{fontSize:"11px",color:"#e8c547",fontWeight:"600"},"● "+pend+" pending"):el("span")
         ),
         div(null,{display:"flex",gap:"7px"},
