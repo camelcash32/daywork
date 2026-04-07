@@ -3626,7 +3626,11 @@ function addFeedbackFAB(){
 applyTheme();
 // Restore saved session
 const _savedUser=load("currentUser",null);
-if(_savedUser){U=_savedUser;}
+if(_savedUser){
+  U=_savedUser;
+  // Re-sync account to server in case it was created during an outage
+  fetch('/register-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_savedUser)}).catch(()=>{});
+}
 try{
   const _p=new URLSearchParams(window.location.search);
   if(_p.get('signup')==='1'){sessionStorage.setItem('_startSignup','1');}
