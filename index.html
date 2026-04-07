@@ -689,6 +689,34 @@ function renderAuth(accentColor, role, onLogin){
   return wrap;
 }
 // Rate modal (shared)
+function revealRatingsIfBoth(jobId, workerName, posterName){
+  const job = jobs.find(j=>j.id===jobId);
+  if(!job) return;
+  const pair = job.completedPairs.find(p=>p.type==="solo"&&p.workerName===workerName&&p.poster===posterName);
+  if(!pair||pair.ratingsRevealed) return;
+  if(!pair.workerRated||!pair.posterRated) return; // both must have submitted
+  // Reveal worker's rating on hirer's profile
+  if(pair.workerPendingRating){
+    const ex=ratings[posterName]||{avg:0,count:0,reviews:[]};
+    const rv=[pair.workerPendingRating,...(ex.reviews||[])];
+    ratings[posterName]={avg:Math.round(rv.reduce((t,r)=>t+r.stars,0)/rv.length*10)/10,count:rv.length,reviews:rv};
+  }
+  // Reveal hirer's rating on worker's profile
+  if(pair.posterPendingRating){
+    const ex=ratings[workerName]||{avg:0,count:0,reviews:[]};
+    const rv=[pair.posterPendingRating,...(ex.reviews||[])];
+    ratings[workerName]={avg:Math.round(rv.reduce((t,r)=>t+r.stars,0)/rv.length*10)/10,count:rv.length,reviews:rv};
+  }
+  // Mark revealed
+  jobs=jobs.map(j=>j.id!==jobId?j:{...j,completedPairs:j.completedPairs.map(p=>
+    p.type==="solo"&&p.workerName===workerName&&p.poster===posterName?{...p,ratingsRevealed:true}:p
+  )});
+  save("ratings",ratings);
+  save("jobs",jobs);
+  showToast("🎉 Ratings revealed! Both parties have submitted their rating.");
+  rerender();
+}
+
 function showRateModal(name, jobId, isWorkerRating, currentUser, jobs, ratings, onDone){
   let overall=0, cats={reliability:0,quality:0,communication:0}, reviewText="";
   const CATS=[
@@ -708,7 +736,7 @@ function showRateModal(name, jobId, isWorkerRating, currentUser, jobs, ratings, 
       ap(el("h2",null,{fontSize:"18px",marginBottom:"2px"}),"Rate "+name),
       ap(el("p",null,{fontSize:"12px",color:"#555"}),isWorkerRating?"How was this worker?":"How was this job poster?")
     ),
-    btn(null,{background:"none",border:"none",color:"#555",fontSize:"22px",cursor:"pointer",padding:"0"},()=>ov.remove(),"✕")
+    btn(null,{background:"none",border:"none",color:"#555",fontSize:"13px",cursor:"pointer",padding:"4px 8px",fontFamily:"inherit"},()=>{ov.remove();showToast("⭐ Reminder: please rate when you get a chance!");},"Remind me later")
   ));
 
   // Overall stars
@@ -753,11 +781,11 @@ function showRateModal(name, jobId, isWorkerRating, currentUser, jobs, ratings, 
   });
 
   // Review text
-  ap(box,ap(el("p",null,{fontSize:"11px",fontWeight:"700",color:"#555",letterSpacing:".1em",marginBottom:"6px"}),"YOUR REVIEW *"));
+  ap(box,ap(el("p",null,{fontSize:"11px",fontWeight:"700",color:"#555",letterSpacing:".1em",marginBottom:"6px"}),"YOUR REVIEW (Optional)"));
   const cin=el("textarea",null,{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",
     borderRadius:"8px",padding:"11px 14px",color:"#f0ede8",fontFamily:"inherit",fontSize:"14px",
     outline:"none",resize:"vertical",minHeight:"90px",boxSizing:"border-box",marginBottom:"4px"});
-  cin.placeholder="Describe your experience in detail (min 20 characters)…";
+  cin.placeholder="Leave a comment about your experience (optional)…";
   cin.addEventListener("input",e=>reviewText=e.target.value);
   const charCount=ap(el("p",null,{fontSize:"11px",color:"#333",marginBottom:"16px"}),"0 / 500");
   cin.addEventListener("input",()=>charCount.textContent=cin.value.length+" / 500");
@@ -776,42 +804,27 @@ function showRateModal(name, jobId, isWorkerRating, currentUser, jobs, ratings, 
 
   // Submit
   const subB=btn("btn",{background:"#e8c547",color:"#0f0f0f",width:"100%",padding:"13px",fontSize:"15px"},()=>{
-    if(!overall){showToast("⚠️ Select an overall star rating.");return;}
-    if(reviewText.trim().length<20){showToast("⚠️ Review needs at least 20 characters.");return;}
+    if(!overall){showToast("⚠️ Please select a star rating before submitting.");return;}
     const d=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-    const ex=ratings[name]||{avg:0,count:0,reviews:[]};
-    const newReview={
-      by:currentUser.name,
-      stars:overall,
-      cats,
-      text:reviewText.trim(),
-      date:d,
-      recommend:wouldRecommend,
-      helpful:0
-    };
-    const rv=[newReview,...(ex.reviews||[])];
-    const avgOverall=Math.round(rv.reduce((t,r)=>t+r.stars,0)/rv.length*10)/10;
-    // Compute category averages
-    const catAvgs={};
-    CATS.forEach(cat=>{
-      const vals=rv.filter(r=>r.cats&&r.cats[cat.key]).map(r=>r.cats[cat.key]);
-      catAvgs[cat.key]=vals.length?Math.round(vals.reduce((a,b)=>a+b,0)/vals.length*10)/10:0;
-    });
-    ratings[name]={avg:avgOverall,count:rv.length,reviews:rv,catAvgs};
-    save("ratings",ratings);
+    const pendingRating={by:currentUser.name,stars:overall,cats,text:reviewText.trim(),date:d,recommend:wouldRecommend,helpful:0};
+    let workerName=isWorkerRating?currentUser.name:name;
+    let posterName=isWorkerRating?name:currentUser.name;
     if(jobId){
       jobs=jobs.map(j=>{
         if(j.id!==jobId)return j;
         return {...j,completedPairs:j.completedPairs.map(p=>{
-          if(isWorkerRating&&p.type==="solo"&&p.workerName===currentUser.name&&p.poster===name)return{...p,workerRated:true};
-          if(!isWorkerRating&&p.type==="solo"&&p.poster===currentUser.name&&p.workerName===name)return{...p,posterRated:true};
+          if(isWorkerRating&&p.type==="solo"&&p.workerName===currentUser.name&&p.poster===name)
+            return{...p,workerRated:true,workerPendingRating:pendingRating};
+          if(!isWorkerRating&&p.type==="solo"&&p.poster===currentUser.name&&p.workerName===name)
+            return{...p,posterRated:true,posterPendingRating:pendingRating};
           return p;
         })};
       });
       save("jobs",jobs);
     }
     ov.remove();
-    showToast("⭐ Review submitted! Thank you.");
+    showToast("⭐ Rating submitted! It will be revealed once "+name+" also rates.");
+    revealRatingsIfBoth(jobId, workerName, posterName);
     onDone(jobs,ratings);
   },"Submit Review →");
   ap(box,subB);
@@ -969,6 +982,37 @@ function renderApp(){
   ap(hdrRight,hdrLogo,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}),
     bellBtn,feedBtn,tog,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}),nameBtn);
   const mainContent=div(null,{flex:"1",minWidth:"0",padding:"28px 20px"});
+
+  // Pending ratings banner — blind rating system
+  const ratingItems=[];
+  jobs.forEach(j=>{
+    if(!j.completedPairs) return;
+    j.completedPairs.forEach(p=>{
+      if(p.type!=="solo"||p.ratingsRevealed) return;
+      // Worker needs to rate hirer
+      if(p.workerName===U.name&&p.done){
+        if(!p.workerRated) ratingItems.push({action:'rate',label:'Rate '+p.poster,cb:()=>showRateModal2(p.poster,j.id)});
+        else ratingItems.push({action:'waiting',label:'Waiting for '+p.poster+' to rate you…'});
+      }
+      // Hirer needs to rate worker
+      if(j.postedBy===U.name&&p.done){
+        if(!p.posterRated) ratingItems.push({action:'rate',label:'Rate '+p.workerName,cb:()=>showRateModal(p.workerName,j.id,false,U,jobs,ratings,(nj,nr)=>{jobs=nj;ratings=nr;rerender();})});
+        else ratingItems.push({action:'waiting',label:'Waiting for '+p.workerName+' to rate you…'});
+      }
+    });
+  });
+  if(ratingItems.length>0){
+    const banner=div(null,{background:"rgba(232,197,71,.08)",border:"1px solid rgba(232,197,71,.25)",borderRadius:"12px",padding:"12px 16px",marginBottom:"16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:"10px"});
+    ap(banner,ap(el("span",null,{fontSize:"13px",color:"#e8c547",fontWeight:"700"}),"⭐ Job ratings pending"));
+    const btns=div(null,{display:"flex",gap:"8px",flexWrap:"wrap",alignItems:"center"});
+    ratingItems.forEach(item=>{
+      if(item.action==='rate') ap(btns,btn(null,{background:"#e8c547",color:"#0f0f0f",border:"none",borderRadius:"8px",padding:"6px 14px",fontSize:"12px",fontWeight:"700",cursor:"pointer",fontFamily:"inherit"},item.cb,item.label));
+      else ap(btns,ap(el("span",null,{fontSize:"12px",color:"#555",fontStyle:"italic"}),item.label));
+    });
+    ap(banner,btns);
+    ap(mainContent,banner);
+  }
+
   if(mode==="poster"){if(tab==="post")ap(mainContent,renderForm());if(tab==="applicants")ap(mainContent,renderApplicants());}
   else if(mode==="workers"){ap(mainContent,renderWorkersAvailable());}
   else{if(viewingProfile)ap(mainContent,renderProfile(viewingProfile));else if(selJob)ap(mainContent,renderDetail());else ap(mainContent,renderBrowse());}
@@ -2219,24 +2263,24 @@ function showRateModal2(name,jobId){
   const box=div(null,{background:"#161616",border:"1px solid #2a2a2a",borderRadius:"16px",padding:"32px",maxWidth:"440px",width:"100%"});
   ap(box,div(null,{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"16px"},
     ap(el("h2",null,{}),"Rate "+name),
-    btn(null,{background:"none",border:"none",color:"#555",fontSize:"20px",cursor:"pointer"},()=>ov.remove(),"✕")
+    btn(null,{background:"none",border:"none",color:"#555",fontSize:"13px",cursor:"pointer",padding:"4px 8px",fontFamily:"inherit"},()=>{ov.remove();showToast("⭐ Reminder: please rate when you get a chance!");},"Remind me later")
   ));
+  ap(box,ap(el("p",null,{fontSize:"12px",color:"#555",marginBottom:"12px"}),"Rating is required — it helps keep the platform safe and trustworthy for everyone."));
   const starRow=div(null,{display:"flex",gap:"8px",marginBottom:"16px"});
   function drawS(){starRow.innerHTML="";[1,2,3,4,5].forEach(i=>{const st=span(null,{fontSize:"34px",cursor:"pointer",color:i<=s?"#e8c547":"#2a2a2a"},"★");st.onclick=()=>{s=i;drawS();};starRow.appendChild(st);});if(s)ap(starRow,span(null,{fontSize:"13px",fontWeight:"700",color:RC[s],marginLeft:"8px"},RL[s]));}
   drawS();ap(box,starRow);
   const cin=el("textarea",null,{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"11px 14px",color:"#f0ede8",fontFamily:"inherit",fontSize:"14px",outline:"none",resize:"vertical",minHeight:"80px",boxSizing:"border-box"});
-  cin.placeholder="Describe your experience (min 10 chars)";cin.addEventListener("input",e=>c=e.target.value);
+  cin.placeholder="Leave a comment about your experience (optional)";cin.addEventListener("input",e=>c=e.target.value);
   const subB=btn("btn btn-p",{marginTop:"12px"},()=>{
-    if(!s){showToast("⚠️ Select stars.");return;}if(c.trim().length<10){showToast("⚠️ Comment needs 10+ chars.");return;}
+    if(!s){showToast("⚠️ Please select a star rating before submitting.");return;}
     const d=new Date().toLocaleDateString("en-US",{month:"short",year:"numeric"});
-    const ex=ratings[name]||{avg:0,count:0,reviews:[]};
-    const rv=[{by:U.name,stars:s,text:c.trim(),date:d},...ex.reviews];
-    ratings={...ratings,[name]:{avg:Math.round(rv.reduce((t,r)=>t+r.stars,0)/rv.length*10)/10,count:rv.length,reviews:rv}};
-    save("ratings",ratings);
-    if(jobId){jobs=jobs.map(j=>j.id!==jobId?j:{...j,completedPairs:j.completedPairs.map(p=>p.type==="solo"&&p.workerName===U.name&&p.poster===name?{...p,workerRated:true}:p)});save("jobs",jobs);}
-    ov.remove();showToast("⭐ Rating submitted!");rerender();
+    const pendingRating={by:U.name,stars:s,text:c.trim()||"",date:d};
+    if(jobId){jobs=jobs.map(j=>j.id!==jobId?j:{...j,completedPairs:j.completedPairs.map(p=>p.type==="solo"&&p.workerName===U.name&&p.poster===name?{...p,workerRated:true,workerPendingRating:pendingRating}:p)});save("jobs",jobs);}
+    ov.remove();showToast("⭐ Rating submitted! It will be revealed once "+name+" also rates.");
+    revealRatingsIfBoth(jobId, U.name, name);
+    rerender();
   },"Submit Rating");
-  ap(box,ap(el("label","lbl",{}),"Comment *"),cin,subB);
+  ap(box,ap(el("label","lbl",{fontSize:"11px",fontWeight:"700",color:"#555",letterSpacing:".1em",display:"block",marginBottom:"6px"}),"COMMENT (Optional)"),cin,subB);
   ap(ov,box);document.body.appendChild(ov);
 }
 
@@ -3557,6 +3601,7 @@ function showToS(onAccept){
     ['Your Responsibility','You are responsible for your own safety. GoDayWork is not liable for any injury, loss, theft, or damage that occurs during a job.'],
     ['Content','Do not post illegal, fraudulent, or misleading job listings. Violations may result in a permanent ban without warning.'],
     ['Prohibited Content','The following are strictly forbidden anywhere on the platform: sexual content; any content involving minors (zero-tolerance — reported to authorities); hate speech targeting race, religion, gender, or other protected characteristics; threats or glorification of violence; fraud or impersonation; spam; and doxxing (sharing another person\'s private information without consent). Automated word filtering is in place and violations result in immediate removal and potential ban.'],
+    ['Blind Rating System','After every completed job, both the hirer and the worker are required to rate each other (1–5 stars). GoDayWork uses a blind rating system — neither party sees the other\'s rating until both have submitted. This prevents retaliation. Written comments are optional. Ratings must be honest and accurate.'],
     ['Reporting & Abuse','The report system is for genuine violations only. Filing false, malicious, or repeated reports against other users is a violation of these terms and may result in a permanent ban of your account. Users found to be abusing the report system will be removed from the platform.'],
     ['Account Bans','GoDayWork reserves the right to suspend or permanently ban any account that violates these terms, engages in fraud, harassment, or abuse, or is flagged by multiple users. Banned users may not create new accounts.'],
     ['Identity Verification Required','Before posting a job or applying for a job, all users — both hirers and workers — must provide their full legal name, phone number, and a profile photo. This is required for the safety of everyone on the platform. Providing false identity information is a violation of these terms and may result in immediate account termination.'],
