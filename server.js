@@ -1740,6 +1740,32 @@ function handleModCommand(msg, ws, meta) {
       }
       break;
     }
+
+    case 'deleteUser': {
+      // Remove user record
+      db.users = (db.users||[]).filter(u => u.name !== target);
+      // Remove their jobs
+      db.jobs = (db.jobs||[]).filter(j => j.postedBy !== target);
+      // Remove their ratings
+      if(db.ratings && db.ratings[target]) delete db.ratings[target];
+      // Remove them from applicant lists
+      (db.jobs||[]).forEach(j => {
+        if(j.applicants) j.applicants = j.applicants.filter(a => a.name !== target);
+      });
+      // Remove worker posts
+      db.workers = (db.workers||[]).filter(p => p.name !== target);
+      // Kick user if online
+      clients.forEach(c => {
+        const m = clientMeta.get(c);
+        if(m && m.user === target) c.send(JSON.stringify({ type:'banned', reason:'Your account has been removed by an administrator.' }));
+      });
+      dirty = true;
+      broadcast({ type:'update', key:'jobs', val:db.jobs });
+      broadcast({ type:'update', key:'users', val:db.users });
+      broadcast({ type:'update', key:'ratings', val:db.ratings });
+      modLog('deleteUser', `Deleted account "${target}"`, by);
+      break;
+    }
   }
 
   saveMod();
