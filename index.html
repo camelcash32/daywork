@@ -3078,15 +3078,8 @@ function showSettingsDropdown(anchorEl) {
     wsSend('users', newUsers);
   };
 
-  // Name
-  ap(acct, inputRow('✏️', 'Display Name', U.name, 'text', v => {
-    if(!v) return;
-    U = {...U, name:v};
-    save('currentUser', U);
-    syncUser(U);
-    showToast('✅ Name updated!');
-    rerender();
-  }));
+  // Name — read-only, auto-formatted as "First L."
+  ap(acct, row('👤', 'Name', ap(el('span',null,{fontSize:'13px',color:'#e8e6f0',fontWeight:'700'}), fmtName(U.name)||U.name||'—')));
 
   // Email
   ap(acct, inputRow('📧', 'Email', U.email, 'email', v => {
