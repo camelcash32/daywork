@@ -1281,10 +1281,20 @@ if(url === '/.well-known/assetlinks.json') {
         const user = JSON.parse(body);
         if (!user.email || !user.name) { res.writeHead(400); res.end('Bad request'); return; }
         if (!db.users) db.users = [];
-        const exists = db.users.find(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
-        if (!exists) {
+        const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+        if (idx < 0) {
           db.users.push(user);
           dirty = true;
+        } else {
+          // Merge profile fields when user resubmits
+          const existing = db.users[idx];
+          let changed = false;
+          ['fullName','phone','photo','profileComplete','revokeReason'].forEach(k => {
+            if(user[k] !== undefined && user[k] !== existing[k]){ existing[k]=user[k]; changed=true; }
+          });
+          // Clear revokeReason when they resubmit pending profile
+          if(user.profileComplete === 'pending' && existing.revokeReason){ existing.revokeReason = null; changed=true; }
+          if(changed) dirty = true;
         }
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         res.end(JSON.stringify({ ok: true }));
@@ -1752,11 +1762,12 @@ function handleModCommand(msg, ws, meta) {
         u.fullName = '';
         u.phone = '';
         u.photo = '';
+        u.revokeReason = msg.reason||'Your account verification has been revoked. Please resubmit your profile with a real photo and your full legal name.';
         dirty = true;
         broadcast({ type:'update', key:'users', val:db.users });
         clients.forEach(c => {
           const m = clientMeta.get(c);
-          if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: msg.reason||'Your account verification has been revoked. Please resubmit your profile with a real photo and your full legal name.' }));
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: u.revokeReason }));
         });
         modLog('revokeProfile', `Revoked verification for "${target}"`, by);
       }

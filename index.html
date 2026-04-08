@@ -991,6 +991,20 @@ function renderApp(){
     bellBtn,feedBtn,tog,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}),nameBtn);
   const mainContent=div(null,{flex:"1",minWidth:"0",padding:"28px 20px"});
 
+  // Verification revoked banner
+  if(U&&U.revokeReason&&!U.profileComplete){
+    const rb=div(null,{background:"rgba(239,68,68,.08)",border:"1px solid rgba(239,68,68,.35)",borderRadius:"14px",padding:"18px 20px",marginBottom:"18px"});
+    ap(rb,
+      ap(el("div",null,{fontSize:"15px",fontWeight:"800",color:"#ef4444",marginBottom:"8px"}),"⚠️ Your verification was revoked"),
+      ap(el("div",null,{fontSize:"13px",color:"#bbb",lineHeight:"1.6",marginBottom:"14px"}),U.revokeReason),
+      btn(null,{background:"#e8c547",color:"#0f0f0f",border:"none",borderRadius:"10px",padding:"10px 22px",fontSize:"13px",fontWeight:"800",cursor:"pointer",fontFamily:"inherit",width:"auto"},()=>{
+        U={...U,revokeReason:null};save('currentUser',U);
+        checkProfileComplete(()=>rerender());
+      },"📷 Resubmit Profile")
+    );
+    ap(mainContent,rb);
+  }
+
   // Pending ratings banner — blind rating system
   const ratingItems=[];
   jobs.forEach(j=>{
@@ -2644,8 +2658,7 @@ function wsConnect(){
           rerender();
         }
         if(msg.type==='profileRejected'){
-          if(U){ U={...U,profileComplete:false,fullName:'',phone:'',photo:''}; save('currentUser',U); }
-          showToast('⚠️ '+(msg.message||'Your profile was not approved. Please resubmit.'));
+          if(U){ U={...U,profileComplete:false,fullName:'',phone:'',photo:'',revokeReason:msg.message||'Your profile was not approved. Please resubmit.'}; save('currentUser',U); }
           rerender();
         }
         if(msg.type==='update'){
@@ -2670,10 +2683,11 @@ function wsConnect(){
               // Update current user if their profile status changed
               if(U){
                 const su = msg.val.find(u=>u.id===U.id||u.email===U.email);
-                if(su && su.profileComplete !== U.profileComplete){
-                  U={...U, profileComplete:su.profileComplete};
-                  save('currentUser',U);
-                  rerender();
+                if(su){
+                  let changed = false;
+                  if(su.profileComplete !== U.profileComplete){ U={...U, profileComplete:su.profileComplete}; changed=true; }
+                  if(su.revokeReason && su.revokeReason !== U.revokeReason){ U={...U, revokeReason:su.revokeReason, fullName:'', phone:'', photo:''}; changed=true; }
+                  if(changed){ save('currentUser',U); rerender(); }
                 }
               }
             }catch(e){}
