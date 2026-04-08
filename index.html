@@ -191,6 +191,14 @@ const CH=null;const _chatCache={};
 function exportData(){const d={jobs:load("jobs",null),ratings:load("ratings",null)};const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(d,null,2)],{type:"application/json"}));a.download="daywork-data.json";a.click();}
 function importData(file,cb){const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.jobs)save("jobs",d.jobs);if(d.ratings)save("ratings",d.ratings);cb();}catch{alert("Invalid file");}};r.readAsText(file);}
 
+// Format name as "First L." for public display
+function fmtName(name){
+  if(!name) return name;
+  const p=name.trim().split(/\s+/);
+  if(p.length<2) return name;
+  return p[0]+' '+p[p.length-1].charAt(0).toUpperCase()+'.';
+}
+
 // Expiry helpers
 function getTimeLeft(expiresAt){
   const ms = expiresAt - Date.now();
@@ -966,7 +974,7 @@ function renderApp(){
   const nameBtn=el("button",null,{background:"none",border:"1px solid #2a2a2a",
       borderRadius:"8px",color:"#ccc",fontFamily:"inherit",fontSize:"13px",cursor:"pointer",
       padding:"5px 12px",display:"inline-flex",alignItems:"center",gap:"6px"});
-    nameBtn.textContent=U.name+" ▾";
+    nameBtn.textContent=fmtName(U.name)+" ▾";
     nameBtn.onclick=function(e){
       e.stopPropagation();
       // Remove existing panel if open (toggle)
@@ -991,13 +999,13 @@ function renderApp(){
       if(p.type!=="solo"||p.ratingsRevealed) return;
       // Worker needs to rate hirer
       if(p.workerName===U.name&&p.done){
-        if(!p.workerRated) ratingItems.push({action:'rate',label:'Rate '+p.poster,cb:()=>showRateModal2(p.poster,j.id)});
-        else ratingItems.push({action:'waiting',label:'Waiting for '+p.poster+' to rate you…'});
+        if(!p.workerRated) ratingItems.push({action:'rate',label:'Rate '+fmtName(p.poster),cb:()=>showRateModal2(p.poster,j.id)});
+        else ratingItems.push({action:'waiting',label:'Waiting for '+fmtName(p.poster)+' to rate you…'});
       }
       // Hirer needs to rate worker
       if(j.postedBy===U.name&&p.done){
-        if(!p.posterRated) ratingItems.push({action:'rate',label:'Rate '+p.workerName,cb:()=>showRateModal(p.workerName,j.id,false,U,jobs,ratings,(nj,nr)=>{jobs=nj;ratings=nr;rerender();})});
-        else ratingItems.push({action:'waiting',label:'Waiting for '+p.workerName+' to rate you…'});
+        if(!p.posterRated) ratingItems.push({action:'rate',label:'Rate '+fmtName(p.workerName),cb:()=>showRateModal(p.workerName,j.id,false,U,jobs,ratings,(nj,nr)=>{jobs=nj;ratings=nr;rerender();})});
+        else ratingItems.push({action:'waiting',label:'Waiting for '+fmtName(p.workerName)+' to rate you…'});
       }
     });
   });
@@ -1359,7 +1367,7 @@ function renderApplicants(){
     const body=div(null,{padding:"16px 20px",display:"flex",flexDirection:"column",gap:"10px"});
     pend.forEach(app=>{
       const row=div(null,{background:"#111",borderRadius:"10px",padding:"14px",display:"flex",alignItems:"center",gap:"12px",flexWrap:"wrap"},
-        div(null,{flex:"1",minWidth:"120px"},pp(null,{fontWeight:"600",fontSize:"15px",marginBottom:"4px"},app.name),rBadge(app.name))
+        div(null,{flex:"1",minWidth:"120px"},pp(null,{fontWeight:"600",fontSize:"15px",marginBottom:"4px"},fmtName(app.name)),rBadge(app.name))
       );
       const hB=btn("btn btn-g",{width:"auto",padding:"8px 18px",fontSize:"13px"},async()=>{
         if(!job.payAmount){showToast("⚠️ This job has no pay amount set.");return;}
@@ -1391,19 +1399,19 @@ function renderApplicants(){
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",
             fontWeight:"700",color:"#22c55e",flexShrink:"0"},app.name.charAt(0).toUpperCase()),
           div(null,{},
-            ap(el("p",null,{fontSize:"14px",fontWeight:"700"}),app.name),
+            ap(el("p",null,{fontSize:"14px",fontWeight:"700"}),fmtName(app.name)),
             ap(el("p",null,{fontSize:"11px",color:"#22c55e"}),"✓ Hired — job in progress")
           )
         ),
         btn("btn btn-g",{width:"auto",padding:"8px 16px",fontSize:"13px"},async(e)=>{
-          if(!confirm("Mark job as done for "+app.name+"? Payment will be released to them now.")) return;
+          if(!confirm("Mark job as done for "+fmtName(app.name)+"? Payment will be released to them now.")) return;
           const doneBtn=e.target; doneBtn.disabled=true; doneBtn.textContent="⏳ Releasing payment…";
           try {
             const r=await fetch('/release-payment',{method:'POST',headers:{'Content-Type':'application/json'},
               body:JSON.stringify({jobId:job.id,workerName:app.name})});
             const d=await r.json();
             if(!d.ok && d.error){showToast("⚠️ "+d.error+" — marking done anyway.");}
-            else {showToast("💸 Payment released to "+app.name+"!");}
+            else {showToast("💸 Payment released to "+fmtName(app.name)+"!");}
           } catch(e2){showToast("⚠️ Could not release payment — marking done anyway.");}
           jobs=jobs.map(j=>j.id!==job.id?j:{...j,
             completedPairs:j.completedPairs.map(p=>
@@ -1411,7 +1419,7 @@ function renderApplicants(){
             )
           });
           save("jobs",jobs);
-          showToast("✅ Job marked complete! Leave a review for "+app.name);
+          showToast("✅ Job marked complete! Leave a review for "+fmtName(app.name));
           rerender();
           // Prompt to rate
           setTimeout(()=>showRateModal(app.name,job.id,false,U,jobs,ratings,(nj,nr)=>{jobs=nj;ratings=nr;rerender();}),600);
@@ -1424,7 +1432,7 @@ function renderApplicants(){
       ap(hrow,
         div(null,{display:"flex",alignItems:"center",gap:"10px"},
           div(null,{width:"32px",height:"32px",borderRadius:"50%",background:"#22c55e22",border:"2px solid #22c55e55",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",color:"#22c55e",fontSize:"13px",flexShrink:"0"},app.name.charAt(0)),
-          ap(el("p",null,{fontWeight:"600",fontSize:"14px"}),app.name)
+          ap(el("p",null,{fontWeight:"600",fontSize:"14px"}),fmtName(app.name))
         ),
         div(null,{display:"flex",gap:"6px"},
           btn(null,{background:"none",border:"1px solid rgba(232,197,71,.3)",borderRadius:"7px",color:"#e8c547",fontSize:"12px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto"},
@@ -1433,20 +1441,20 @@ function renderApplicants(){
           sp(null,{fontSize:"11px",color:"#22c55e",fontWeight:"600",padding:"5px 4px"},"💳 Payment held"),
           btn(null,{background:"none",border:"1px solid rgba(239,68,68,.3)",borderRadius:"7px",color:"#ef4444",fontSize:"12px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto"},
             ()=>{
-              if(!confirm("Cancel "+app.name+"? The slot will reopen.")) return;
+              if(!confirm("Cancel "+fmtName(app.name)+"? The slot will reopen.")) return;
               jobs=jobs.map(j=>{
                 if(j.id!==job.id) return j;
                 const newApps=j.applicants.map(a=>a.type==="solo"&&a.name===app.name?{...a,status:"cancelled"}:a);
                 return {...j,applicants:newApps,filled:Math.max(0,j.filled-1)};
               });
-              save("jobs",jobs);showToast("↩ "+app.name+" cancelled. Slot reopened.");rerender();
+              save("jobs",jobs);showToast("↩ "+fmtName(app.name)+" cancelled. Slot reopened.");rerender();
             },"✕ Cancel"
           )
         )
       );
       ap(body,hrow);
     });
-    toRate.forEach(pr=>{ap(body,btn("btn",{background:"#1a1a1a",border:"1px solid rgba(232,197,71,.3)",color:"#e8c547",padding:"12px",textAlign:"left"},()=>showRateModal(pr.workerName,job.id,false,U,jobs,ratings,(nj,nr)=>{jobs=nj;ratings=nr;rerender();}),"⭐ Rate "+pr.workerName+" for this job"));});
+    toRate.forEach(pr=>{ap(body,btn("btn",{background:"#1a1a1a",border:"1px solid rgba(232,197,71,.3)",color:"#e8c547",padding:"12px",textAlign:"left"},()=>showRateModal(pr.workerName,job.id,false,U,jobs,ratings,(nj,nr)=>{jobs=nj;ratings=nr;rerender();}),"⭐ Rate "+fmtName(pr.workerName)+" for this job"));});
     ap(jc,body);ap(w,jc);
   });
   return w;
@@ -1806,7 +1814,7 @@ function renderWorkersAvailable(){
       const card=div(null,{background:"#161616",border:"1px solid #252525",borderRadius:"14px",padding:"18px",marginBottom:"14px",borderLeft:"3px solid #22c55e"});
       // Header
       const top=div(null,{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"6px"});
-      ap(top,pp(null,{fontSize:"16px",fontWeight:"700"},p.name));
+      ap(top,pp(null,{fontSize:"16px",fontWeight:"700"},fmtName(p.name)));
       const badge=pp(null,{fontSize:"10px",fontWeight:"700",padding:"3px 10px",borderRadius:"20px",background:"rgba(34,197,94,.12)",color:"#22c55e"},p.status==="matched"?"✅ MATCHED":"🟢 "+p.avail.toUpperCase());
       ap(top,badge);ap(card,top);
       ap(card,pp(null,{fontSize:"14px",color:"#aaa",marginBottom:"4px"},p.skills));
@@ -1833,7 +1841,7 @@ function renderWorkersAvailable(){
         },"💬 Open Chat");
         ap(box,chatBtn);ap(card,box);
       } else if(myOffer){
-        ap(card,pp(null,{fontSize:"12px",color:"#666",textAlign:"center",padding:"10px",background:"#0f0f0f",borderRadius:"8px",border:"1px solid #2a2a2a"},"⏳ Offer of "+myOffer.amount+" sent — waiting for "+p.name+" to respond"));
+        ap(card,pp(null,{fontSize:"12px",color:"#666",textAlign:"center",padding:"10px",background:"#0f0f0f",borderRadius:"8px",border:"1px solid #2a2a2a"},"⏳ Offer of "+myOffer.amount+" sent — waiting for "+fmtName(p.name)+" to respond"));
       } else if(p.status!=="matched"){
         // Offer input
         const offerWrap=div(null,{});
@@ -1843,7 +1851,7 @@ function renderWorkersAvailable(){
           offerArea.style.display=offerVisible.open?"block":"none";
         },"💰 Make an Offer");
         const offerArea=div(null,{display:"none",marginTop:"10px",background:"#0f0f0f",border:"1px solid #2a2a2a",borderRadius:"10px",padding:"14px"});
-        ap(offerArea,pp(null,{fontSize:"11px",color:"#555",marginBottom:"8px"},"Enter your offer for "+p.name+":"));
+        ap(offerArea,pp(null,{fontSize:"11px",color:"#555",marginBottom:"8px"},"Enter your offer for "+fmtName(p.name)+":"));
         const inputRow=div(null,{display:"flex",gap:"8px"});
         ap(inputRow,pp(null,{fontSize:"18px",lineHeight:"36px",color:"#aaa",padding:"0 2px"},"$"));
         const amtIn=el("input",null,{flex:"1",background:"#1a1a1a",border:"1px solid #2a2a2a",borderRadius:"8px",padding:"8px 12px",color:"#f0ede8",fontSize:"14px",fontFamily:"inherit",outline:"none"});
@@ -1854,7 +1862,7 @@ function renderWorkersAvailable(){
           const offer={id:Date.now(),hirerName:U.name,amount:"$"+amt.toFixed(2),status:"pending"};
           p.offers=p.offers||[];p.offers.push(offer);
           wsSend("workers",workerPosts);
-          showToast("✅ Offer sent to "+p.name+"!");
+          showToast("✅ Offer sent to "+fmtName(p.name)+"!");
           rerender();
         },"Send Offer");
         ap(inputRow,amtIn,sendBtn);ap(offerArea,inputRow);
@@ -2001,7 +2009,7 @@ function renderBrowse(){
       p2(null,{fontSize:"12px",color:"#444",marginBottom:"4px"},"📍 "+job.location),
       p2(null,{fontSize:"12px",color:"#444",marginBottom:"8px"},"📅 "+job.date),
       div(null,{display:"flex",alignItems:"center",gap:"6px",marginBottom:"8px"},
-        r?ap(el("span",null,{display:"inline-flex",alignItems:"center",gap:"3px"}),starsEl(r.avg,10),span(null,{fontSize:"11px",color:RC[Math.round(r.avg)],fontWeight:"600"}," "+r.avg.toFixed(1)),span(null,{fontSize:"10px",color:"#333"}," · "+job.postedBy)):span(null,{fontSize:"11px",color:"#333"},job.postedBy)
+        r?ap(el("span",null,{display:"inline-flex",alignItems:"center",gap:"3px"}),starsEl(r.avg,10),span(null,{fontSize:"11px",color:RC[Math.round(r.avg)],fontWeight:"600"}," "+r.avg.toFixed(1)),span(null,{fontSize:"10px",color:"#333"}," · "+fmtName(job.postedBy))):span(null,{fontSize:"11px",color:"#333"},fmtName(job.postedBy))
       ),
       myApp?ap(el("span","tag",{marginBottom:"8px",display:"inline-block",background:myApp.status==="accepted"?"rgba(34,197,94,.1)":myApp.status==="cancelled"?"rgba(249,115,22,.1)":myApp.status==="passed"?"rgba(239,68,68,.1)":"rgba(232,197,71,.1)",color:myApp.status==="accepted"?"#22c55e":myApp.status==="cancelled"?"#f97316":myApp.status==="passed"?"#ef4444":"#e8c547",border:"1px solid "+(myApp.status==="accepted"?"rgba(34,197,94,.3)":myApp.status==="cancelled"?"rgba(249,115,22,.3)":myApp.status==="passed"?"rgba(239,68,68,.3)":"rgba(232,197,71,.3)")}),myApp.status==="accepted"?"✓ Hired":myApp.status==="cancelled"?"↩ Cancelled":myApp.status==="passed"?"✕ Passed":"⏳ Pending"):el("span"),
       div(null,{borderTop:"1px solid #1e1e1e",paddingTop:"8px",marginTop:"4px",display:"flex",justifyContent:"space-between",fontSize:"12px",color:"#444"},
@@ -2082,7 +2090,7 @@ function renderDetail(){
 
   const posterBox=div(null,{background:"#111",borderRadius:"10px",padding:"12px 14px",marginBottom:"18px",display:"flex",alignItems:"center",gap:"10px"},
     div(null,{width:"36px",height:"36px",borderRadius:"50%",background:"#222",border:"2px solid #2a2a2a",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:"700",color:"#666",fontSize:"15px",flexShrink:"0"},job.postedBy.charAt(0)),
-    div(null,{},p2(null,{fontWeight:"600",fontSize:"14px",marginBottom:"3px"},job.postedBy),rBadge(job.postedBy))
+    div(null,{},p2(null,{fontWeight:"600",fontSize:"14px",marginBottom:"3px"},fmtName(job.postedBy)),rBadge(job.postedBy))
   );
   ap(inner,posterBox);
   if(job.expiresAt){ap(inner,ap(div(null,{background:"#111",borderRadius:"8px",padding:"10px 12px",marginBottom:"14px"}),p2(null,{fontSize:"10px",color:"#444",marginBottom:"5px",fontWeight:"700",letterSpacing:".08em"},"JOB EXPIRES IN"),timerBadge(job,null)));}
@@ -2201,7 +2209,7 @@ function renderDetail(){
             )
           });
           save("jobs",jobs);
-          showToast("✅ Job marked complete! Leave a review for "+job.postedBy);
+          showToast("✅ Job marked complete! Leave a review for "+fmtName(job.postedBy));
           rerender();
           setTimeout(()=>showRateModal2(job.postedBy,job.id),600);
         },"✅ Mark Job Complete"));
@@ -2238,14 +2246,14 @@ function renderDetail(){
       }
       ap(inner,btn("btn",{background:"rgba(232,197,71,.08)",border:"1px solid rgba(232,197,71,.3)",color:"#e8c547",padding:"12px",textAlign:"left",marginBottom:"8px"},
         ()=>showChatModal(job.id,job.title,U.name,U.name),
-        unread?"💬 Message "+job.postedBy+" 🔴":"💬 Message "+job.postedBy
+        unread?"💬 Message "+fmtName(job.postedBy)+" 🔴":"💬 Message "+fmtName(job.postedBy)
       ));
     }
 
     // Rate button
     if(canRate){
       ap(inner,btn("btn",{background:"#1a1a1a",border:"1px solid rgba(167,139,250,.3)",color:"#a78bfa",padding:"12px",textAlign:"left"},
-        ()=>showRateModal2(job.postedBy,job.id),"⭐ Rate "+job.postedBy
+        ()=>showRateModal2(job.postedBy,job.id),"⭐ Rate "+fmtName(job.postedBy)
       ));
     }
   } catch(_actErr) {
