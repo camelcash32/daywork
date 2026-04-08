@@ -1709,10 +1709,14 @@ function handleModCommand(msg, ws, meta) {
     case 'approveProfile': {
       const u = (db.users||[]).find(u=>u.name===target);
       if(u){
+        if(!u.photo){
+          ws.send(JSON.stringify({type:'modAck', action:'approveProfile', target, error:'No profile photo — cannot approve.'}));
+          ws.send(JSON.stringify({type:'toast', message:'⚠️ Cannot approve @'+target+' — they have no profile photo. Ask them to resubmit.'}));
+          break;
+        }
         u.profileComplete = true;
         dirty = true;
         broadcast({ type:'update', key:'users', val:db.users });
-        // Notify the user if online
         clients.forEach(c => {
           const m = clientMeta.get(c);
           if(m && m.user === target) c.send(JSON.stringify({ type:'profileApproved' }));
