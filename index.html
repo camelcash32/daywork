@@ -3696,7 +3696,10 @@ const _savedUser=load("currentUser",null);
 if(_savedUser){
   U=_savedUser;
   // Re-sync account to server in case it was created during an outage
-  fetch('/register-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_savedUser)}).catch(()=>{});
+  fetch('/register-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_savedUser)})
+    .then(r=>r.json()).then(d=>{
+      if(d&&d.banned){ localStorage.clear(); location.reload(); }
+    }).catch(()=>{});
 }
 try{
   const _p=new URLSearchParams(window.location.search);

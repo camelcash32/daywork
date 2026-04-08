@@ -1281,6 +1281,13 @@ if(url === '/.well-known/assetlinks.json') {
         const user = JSON.parse(body);
         if (!user.email || !user.name) { res.writeHead(400); res.end('Bad request'); return; }
         if (!db.users) db.users = [];
+        // Block permanently deleted accounts from re-registering
+        if (!db.deletedEmails) db.deletedEmails = [];
+        if (db.deletedEmails.includes(user.email.toLowerCase())) {
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok: false, banned: true }));
+          return;
+        }
         const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
         if (idx < 0) {
           db.users.push(user);
@@ -1775,6 +1782,13 @@ function handleModCommand(msg, ws, meta) {
     }
 
     case 'deleteUser': {
+      // Add email to blocklist so they can't re-register
+      const deletedUser = (db.users||[]).find(u => u.name === target);
+      if (deletedUser && deletedUser.email) {
+        if (!db.deletedEmails) db.deletedEmails = [];
+        const emailLow = deletedUser.email.toLowerCase();
+        if (!db.deletedEmails.includes(emailLow)) db.deletedEmails.push(emailLow);
+      }
       // Remove user record
       db.users = (db.users||[]).filter(u => u.name !== target);
       // Remove their jobs
