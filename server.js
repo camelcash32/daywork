@@ -1745,6 +1745,24 @@ function handleModCommand(msg, ws, meta) {
       break;
     }
 
+    case 'revokeProfile': {
+      const u = (db.users||[]).find(u=>u.name===target);
+      if(u){
+        u.profileComplete = false;
+        u.fullName = '';
+        u.phone = '';
+        u.photo = '';
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: msg.reason||'Your account verification has been revoked. Please resubmit your profile with a real photo and your full legal name.' }));
+        });
+        modLog('revokeProfile', `Revoked verification for "${target}"`, by);
+      }
+      break;
+    }
+
     case 'deleteUser': {
       // Remove user record
       db.users = (db.users||[]).filter(u => u.name !== target);
