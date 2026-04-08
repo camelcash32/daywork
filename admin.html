@@ -641,9 +641,9 @@ function renderUsers(){
     const d=document.createElement('div'); d.className='card';
     const userObj=(db.users||[]).find(u=>u.name===name);
     const ipTag=userObj&&userObj.lastIp?`<span style="font-size:11px;color:#555;background:#111;border:1px solid #222;border-radius:4px;padding:2px 7px;font-family:monospace;margin-left:8px">🌐 ${userObj.lastIp}</span>`:'';
-    const isPending = userObj&&userObj.profileComplete==='pending';
-    const isApproved = userObj&&userObj.profileComplete===true;
     const nameNeedsApproval = userObj&&userObj.nameApproved===false;
+    const isPending = userObj&&!nameNeedsApproval&&userObj.profileComplete==='pending';
+    const isApproved = userObj&&!nameNeedsApproval&&userObj.profileComplete===true;
     const fullNameTag = nameNeedsApproval
       ? `<span style="font-size:11px;color:#e8c547;background:rgba(232,197,71,.1);border:1px solid rgba(232,197,71,.3);border-radius:4px;padding:2px 7px;margin-left:4px">⏳ NAME: ${userObj.firstName||''} ${userObj.lastName||''}</span>`
       : userObj&&userObj.fullName ? `<span style="font-size:11px;color:#a78bfa;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);border-radius:4px;padding:2px 7px;margin-left:4px">👤 ${userObj.fullName}</span>` : '<span style="font-size:11px;color:#555;border:1px solid #222;border-radius:4px;padding:2px 7px;margin-left:4px">👤 not verified</span>';
@@ -948,9 +948,9 @@ function showUserProfile(name){
   const posted=(db.jobs||[]).filter(j=>j.postedBy===name);
   const warned=(mod.warnings||{})[name]||[];
   const banned=(mod.bannedUsers||[]).find(b=>b.name===name);
-  const isPending=u.profileComplete==='pending';
-  const isApproved=u.profileComplete===true;
   const nameNeedsApproval=u.nameApproved===false;
+  const isPending=!nameNeedsApproval&&u.profileComplete==='pending';
+  const isApproved=!nameNeedsApproval&&u.profileComplete===true;
 
   const photoHtml=u.photo
     ? `<img src="${u.photo}" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid ${isPending?'#f59e0b':isApproved?'#22c55e':'#333'};display:block;margin:0 auto 14px">`

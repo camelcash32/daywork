@@ -3120,7 +3120,10 @@ function showSettingsDropdown(anchorEl) {
     if(!em||!em.includes('@')){editErr.textContent='Please enter a valid email.';return;}
     const fullName=fn+' '+ln;
     const nameChanged = fullName !== U.name;
-    U={...U,firstName:fn,lastName:ln,name:fullName,fullName:fullName,email:em,phone:ph||U.phone,nameApproved:nameChanged?false:U.nameApproved};
+    U={...U,firstName:fn,lastName:ln,name:fullName,fullName:fullName,email:em,phone:ph||U.phone,
+      nameApproved:nameChanged?false:U.nameApproved,
+      profileComplete:nameChanged?false:U.profileComplete,
+      fullName:nameChanged?'':fullName};
     save('currentUser',U);
     syncUser(U);
     fetch('/register-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(U)}).catch(()=>{});
