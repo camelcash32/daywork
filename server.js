@@ -1296,7 +1296,7 @@ if(url === '/.well-known/assetlinks.json') {
           // Merge profile fields when user resubmits
           const existing = db.users[idx];
           let changed = false;
-          ['fullName','phone','photo','profileComplete','revokeReason'].forEach(k => {
+          ['fullName','firstName','lastName','nameApproved','phone','photo','profileComplete','revokeReason'].forEach(k => {
             if(user[k] !== undefined && user[k] !== existing[k]){ existing[k]=user[k]; changed=true; }
           });
           // Clear revokeReason when they resubmit pending profile
@@ -1777,6 +1777,37 @@ function handleModCommand(msg, ws, meta) {
           if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: u.revokeReason }));
         });
         modLog('revokeProfile', `Revoked verification for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'approveName': {
+      const u = (db.users||[]).find(u => u.name === target);
+      if (u) {
+        u.nameApproved = true;
+        dirty = true;
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === target) c.send(JSON.stringify({ type: 'nameApproved' }));
+        });
+        modLog('approveName', `Approved name for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'rejectName': {
+      const u = (db.users||[]).find(u => u.name === target);
+      if (u) {
+        // Notify user if online before clearing
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === target) c.send(JSON.stringify({ type: 'nameRejected' }));
+        });
+        // Remove from DB so they can re-register with correct name
+        db.users = db.users.filter(u2 => u2.name !== target);
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        modLog('rejectName', `Rejected name for "${target}"`, by);
       }
       break;
     }

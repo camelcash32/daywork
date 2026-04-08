@@ -444,8 +444,10 @@ function renderAuth(accentColor, role, onLogin){
       const card2 = div(null,{width:"100%",background:"#131313",border:"1px solid #222",borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"14px"});
       const signupForm=el("form",null,{width:"100%"},{autocomplete:"on"});
       signupForm.onsubmit=(e)=>{e.preventDefault();doSignup();};
-      const unIn=inp("text","First and last name","");
-      unIn.setAttribute("name","name"); unIn.setAttribute("autocomplete","name");
+      const fnFirst=inp("text","First name","");
+      fnFirst.setAttribute("name","given-name"); fnFirst.setAttribute("autocomplete","given-name");
+      const fnLast=inp("text","Last name","");
+      fnLast.setAttribute("name","family-name"); fnLast.setAttribute("autocomplete","family-name");
       const emIn=inp("email","Email address","");
       emIn.setAttribute("name","email"); emIn.setAttribute("autocomplete","email");
       const pw1=inp("password","Password (min 6 chars)","");
@@ -468,10 +470,13 @@ function renderAuth(accentColor, role, onLogin){
       const tosRow=div(null,{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"});
       ap(tosRow,tosCb,tosLabel);
       const doSignup=()=>{
-        const fullNameRaw=unIn.value.trim(), email=emIn.value.trim().toLowerCase();
+        const firstName=fnFirst.value.trim(), lastName=fnLast.value.trim();
+        const fullNameRaw=(firstName+' '+lastName).trim();
+        const email=emIn.value.trim().toLowerCase();
         const pass=pw1.value, pass2=pw2.value;
         if(!tosCb.checked){errS.textContent="You must accept the Terms of Service.";return;}
-        if(!fullNameRaw||fullNameRaw.split(/\s+/).filter(Boolean).length<2){errS.textContent="Please enter your first and last name.";return;}
+        if(!firstName){errS.textContent="Please enter your first name.";return;}
+        if(!lastName){errS.textContent="Please enter your last name.";return;}
         if(!email||!email.includes("@")){errS.textContent="Please enter a valid email.";return;}
         const emailDomain=email.split("@")[1]||"";
         if(DISPOSABLE_DOMAINS.has(emailDomain)){errS.textContent="Temporary or disposable email addresses are not allowed. Please use a real email.";return;}
@@ -482,6 +487,7 @@ function renderAuth(accentColor, role, onLogin){
         _lsSet('dw_tosAccepted','1');
         // Create account directly — no email verification required
         const newUser={id:"u_"+Date.now(),email,password:pass,name:fullNameRaw,fullName:fullNameRaw,
+          firstName,lastName,nameApproved:false,
           joinDate:new Date().toLocaleDateString(),emailVerified:true};
         const updated=[...load("users",MOCK_USERS),newUser];
         save("users",updated);
@@ -496,7 +502,10 @@ function renderAuth(accentColor, role, onLogin){
       loginLink.onclick=()=>{authView="login";_savedAuthView="login";rebuild();};
       ap(backRow,"Already have an account? ",loginLink);
       ap(signupForm,
-        ap(div(null,{marginBottom:"10px"}),lbl("FULL NAME *"),unIn),
+        ap(div(null,{marginBottom:"10px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}),
+          ap(div(),lbl("FIRST NAME *"),fnFirst),
+          ap(div(),lbl("LAST NAME *"),fnLast)
+        ),
         ap(div(null,{marginBottom:"10px"}),lbl("EMAIL *"),emIn),
         ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD *"),ap(pw1Wrap,pw1,eye1)),
         ap(div(null,{marginBottom:"10px"}),lbl("CONFIRM PASSWORD *"),ap(pw2Wrap,pw2,eye2)),
@@ -988,6 +997,26 @@ function renderApp(){
   ap(hdrRight,hdrLogo,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}),
     bellBtn,feedBtn,tog,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}),nameBtn);
   const mainContent=div(null,{flex:"1",minWidth:"0",padding:"28px 20px"});
+
+  // Name pending admin approval
+  if(U&&U.nameApproved===false){
+    const nb=div(null,{background:"rgba(232,197,71,.06)",border:"1px solid rgba(232,197,71,.25)",borderRadius:"14px",padding:"28px 24px",marginBottom:"18px",textAlign:"center"});
+    ap(nb,
+      ap(el("div",null,{fontSize:"32px",marginBottom:"14px"}),"👤"),
+      ap(el("div",null,{fontSize:"16px",fontWeight:"800",color:"#e8c547",marginBottom:"10px"}),"Name Pending Review"),
+      ap(el("div",null,{fontSize:"13px",color:"#888",lineHeight:"1.7",maxWidth:"340px",margin:"0 auto"}),
+        "Your name has been submitted and is waiting for admin approval. You'll be able to use the platform once your name is confirmed."
+      )
+    );
+    ap(mainContent,nb);
+    // Don't render anything else while name is pending
+    return ap(div(null,{display:"flex",flexDirection:"column",minHeight:"100vh",background:"#0a0a0f"}),
+      ap(div(null,{background:"#0c0c12",borderBottom:"1px solid #1c1c28",padding:"14px 20px",display:"flex",alignItems:"center",justifyContent:"space-between"}),
+        logoEl, signOut
+      ),
+      ap(div(null,{flex:"1",padding:"28px 20px"}), mainContent)
+    );
+  }
 
   // Verification revoked banner
   if(U&&U.revokeReason&&!U.profileComplete){
@@ -2650,6 +2679,16 @@ function wsConnect(){
           _showConn(true);
         }
 
+        if(msg.type==='nameApproved'){
+          if(U){ U={...U,nameApproved:true}; save('currentUser',U); }
+          showToast('✅ Your name has been approved! Welcome to GoDayWork.');
+          rerender();
+        }
+        if(msg.type==='nameRejected'){
+          if(U){ U={...U,nameApproved:null,name:'',fullName:'',firstName:'',lastName:''}; save('currentUser',U); }
+          showToast('❌ Your name was not approved — please sign up again with your real name.');
+          setTimeout(()=>{ U=null; save('currentUser',null); rerender(); }, 3000);
+        }
         if(msg.type==='profileApproved'){
           if(U){ U={...U,profileComplete:true}; save('currentUser',U); }
           showToast('✅ Your profile has been approved! You can now post and apply for jobs.');
