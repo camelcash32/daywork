@@ -444,8 +444,8 @@ function renderAuth(accentColor, role, onLogin){
       const card2 = div(null,{width:"100%",background:"#131313",border:"1px solid #222",borderRadius:"14px",padding:"26px 24px 22px",marginBottom:"14px"});
       const signupForm=el("form",null,{width:"100%"},{autocomplete:"on"});
       signupForm.onsubmit=(e)=>{e.preventDefault();doSignup();};
-      const unIn=inp("text","Username (no spaces)","");
-      unIn.setAttribute("name","username"); unIn.setAttribute("autocomplete","username");
+      const unIn=inp("text","First and last name","");
+      unIn.setAttribute("name","name"); unIn.setAttribute("autocomplete","name");
       const emIn=inp("email","Email address","");
       emIn.setAttribute("name","email"); emIn.setAttribute("autocomplete","email");
       const pw1=inp("password","Password (min 6 chars)","");
@@ -468,11 +468,10 @@ function renderAuth(accentColor, role, onLogin){
       const tosRow=div(null,{display:"flex",alignItems:"center",gap:"8px",marginBottom:"12px"});
       ap(tosRow,tosCb,tosLabel);
       const doSignup=()=>{
-        const username=unIn.value.trim(), email=emIn.value.trim().toLowerCase();
+        const fullNameRaw=unIn.value.trim(), email=emIn.value.trim().toLowerCase();
         const pass=pw1.value, pass2=pw2.value;
         if(!tosCb.checked){errS.textContent="You must accept the Terms of Service.";return;}
-        if(!username||username.length<3){errS.textContent="Username must be at least 3 characters.";return;}
-        if(username.includes(" ")){errS.textContent="Username cannot contain spaces.";return;}
+        if(!fullNameRaw||fullNameRaw.split(/\s+/).filter(Boolean).length<2){errS.textContent="Please enter your first and last name.";return;}
         if(!email||!email.includes("@")){errS.textContent="Please enter a valid email.";return;}
         const emailDomain=email.split("@")[1]||"";
         if(DISPOSABLE_DOMAINS.has(emailDomain)){errS.textContent="Temporary or disposable email addresses are not allowed. Please use a real email.";return;}
@@ -480,10 +479,9 @@ function renderAuth(accentColor, role, onLogin){
         if(pass!==pass2){errS.textContent="Passwords do not match.";return;}
         const users=load("users",MOCK_USERS);
         if(users.find(u=>u.email===email)){errS.textContent="Email already in use.";return;}
-        if(users.find(u=>u.name&&u.name.toLowerCase()===username.toLowerCase())){errS.textContent="Username taken.";return;}
         _lsSet('dw_tosAccepted','1');
         // Create account directly — no email verification required
-        const newUser={id:"u_"+Date.now(),email,password:pass,name:username,
+        const newUser={id:"u_"+Date.now(),email,password:pass,name:fullNameRaw,fullName:fullNameRaw,
           joinDate:new Date().toLocaleDateString(),emailVerified:true};
         const updated=[...load("users",MOCK_USERS),newUser];
         save("users",updated);
@@ -498,7 +496,7 @@ function renderAuth(accentColor, role, onLogin){
       loginLink.onclick=()=>{authView="login";_savedAuthView="login";rebuild();};
       ap(backRow,"Already have an account? ",loginLink);
       ap(signupForm,
-        ap(div(null,{marginBottom:"10px"}),lbl("USERNAME *"),unIn),
+        ap(div(null,{marginBottom:"10px"}),lbl("FULL NAME *"),unIn),
         ap(div(null,{marginBottom:"10px"}),lbl("EMAIL *"),emIn),
         ap(div(null,{marginBottom:"10px"}),lbl("PASSWORD *"),ap(pw1Wrap,pw1,eye1)),
         ap(div(null,{marginBottom:"10px"}),lbl("CONFIRM PASSWORD *"),ap(pw2Wrap,pw2,eye2)),
@@ -633,8 +631,8 @@ function renderAuth(accentColor, role, onLogin){
         background:"linear-gradient(135deg,#e8c547,#a78bfa)",
         display:"flex",alignItems:"center",justifyContent:"center",
         fontWeight:"900",fontSize:"28px",color:"#0f0f0f",margin:"0 auto 16px"});
-      ap(avatarPreview,(pendingUser.name||"?").charAt(0).toUpperCase());
-      const fnIn=inp("text","Your full name","");
+      ap(avatarPreview,(pendingUser.fullName||pendingUser.name||"?").charAt(0).toUpperCase());
+      const fnIn=inp("text","Your full name",pendingUser.fullName||pendingUser.name||"");
       const zipIn=inp("text","ZIP code","");
       const gSel=el("select",null,{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",
         borderRadius:"10px",padding:"11px 14px",color:"#f0ede8",fontFamily:"inherit",fontSize:"14px",
