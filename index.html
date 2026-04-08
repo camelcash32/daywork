@@ -3044,7 +3044,12 @@ function showSettingsDropdown(anchorEl) {
   ap(panel, hdr);
 
   // ── ACCOUNT SETTINGS ───────────────────────────────────────
-  const acct = section('👤 ACCOUNT SETTINGS');
+  const acct = div(null, {borderTop:'1px solid #1e1e1e', padding:'10px 16px 4px'});
+  const editToggleBtn = btn(null,{background:'none',border:'1px solid #2a2a2a',borderRadius:'6px',color:'#888',fontSize:'11px',fontWeight:'700',cursor:'pointer',fontFamily:'inherit',padding:'3px 10px',width:'auto'},(()=>{}),'✏️ Edit');
+  ap(acct, div(null,{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'8px'},
+    ap(el('p',null,{fontSize:'10px',fontWeight:'700',color:'#444',letterSpacing:'.1em',margin:'0'}),'👤 ACCOUNT SETTINGS'),
+    editToggleBtn
+  ));
 
   // Profile picture upload
   const fileInput = el('input',null,{display:'none'},{type:'file',accept:'image/*'});
@@ -3079,16 +3084,52 @@ function showSettingsDropdown(anchorEl) {
   };
 
   // Name — read-only, auto-formatted as "First L."
+  // Name row
   ap(acct, row('👤', 'Name', ap(el('span',null,{fontSize:'13px',color:'#e8e6f0',fontWeight:'700'}), fmtName(U.name)||U.name||'—')));
 
-  // Email
-  ap(acct, inputRow('📧', 'Email', U.email, 'email', v => {
-    if(!v) return;
-    U = {...U, email:v};
-    save('currentUser', U);
+  // ── UPDATE INFO SECTION (hidden until Edit clicked) ──────────
+  const editSec = div(null,{background:'#0d0d12',border:'1px solid #1c1c28',borderRadius:'12px',padding:'16px',margin:'4px 0 10px',display:'none'});
+  ap(editSec, ap(el('div',null,{fontSize:'11px',fontWeight:'700',letterSpacing:'.1em',color:'#555',marginBottom:'12px',textTransform:'uppercase'}),'Update Your Info'));
+
+  const editFn = el('input',null,{background:'#111',border:'1px solid #2a2a2a',borderRadius:'8px',padding:'9px 12px',color:'#f0ede8',fontFamily:'inherit',fontSize:'13px',width:'100%',outline:'none',boxSizing:'border-box',marginBottom:'8px'},{type:'text',placeholder:'First name',value:U.firstName||''});
+  const editLn = el('input',null,{background:'#111',border:'1px solid #2a2a2a',borderRadius:'8px',padding:'9px 12px',color:'#f0ede8',fontFamily:'inherit',fontSize:'13px',width:'100%',outline:'none',boxSizing:'border-box',marginBottom:'8px'},{type:'text',placeholder:'Last name',value:U.lastName||''});
+  const editEm = el('input',null,{background:'#111',border:'1px solid #2a2a2a',borderRadius:'8px',padding:'9px 12px',color:'#f0ede8',fontFamily:'inherit',fontSize:'13px',width:'100%',outline:'none',boxSizing:'border-box',marginBottom:'8px'},{type:'email',placeholder:'Email address',value:U.email||''});
+  const editPh = el('input',null,{background:'#111',border:'1px solid #2a2a2a',borderRadius:'8px',padding:'9px 12px',color:'#f0ede8',fontFamily:'inherit',fontSize:'13px',width:'100%',outline:'none',boxSizing:'border-box',marginBottom:'12px'},{type:'tel',placeholder:'Phone number',value:U.phone||''});
+  const editErr = pp(null,{color:'#ef4444',fontSize:'12px',minHeight:'16px',marginBottom:'8px'});
+
+  editToggleBtn.onclick = ()=>{
+    const open = editSec.style.display==='block';
+    editSec.style.display = open?'none':'block';
+    editToggleBtn.textContent = open?'✏️ Edit':'✕ Cancel';
+  };
+
+  [editFn,editLn,editEm,editPh].forEach(inp2=>{
+    inp2.addEventListener('focus',()=>inp2.style.borderColor='#e8c547');
+    inp2.addEventListener('blur',()=>inp2.style.borderColor='#2a2a2a');
+  });
+
+  const nameGrid = div(null,{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'});
+  ap(nameGrid, editFn, editLn);
+
+  const saveInfoBtn = btn(null,{background:'#e8c547',color:'#0f0f0f',border:'none',borderRadius:'8px',padding:'10px',fontSize:'13px',fontWeight:'800',cursor:'pointer',fontFamily:'inherit',width:'100%'},()=>{
+    const fn=editFn.value.trim(), ln=editLn.value.trim();
+    const em=editEm.value.trim().toLowerCase(), ph=editPh.value.trim();
+    editErr.textContent='';
+    if(!fn){editErr.textContent='Please enter your first name.';return;}
+    if(!ln){editErr.textContent='Please enter your last name.';return;}
+    if(!em||!em.includes('@')){editErr.textContent='Please enter a valid email.';return;}
+    const fullName=fn+' '+ln;
+    const nameChanged = fullName !== U.name;
+    U={...U,firstName:fn,lastName:ln,name:fullName,fullName:fullName,email:em,phone:ph||U.phone,nameApproved:nameChanged?false:U.nameApproved};
+    save('currentUser',U);
     syncUser(U);
-    showToast('✅ Email updated!');
-  }));
+    fetch('/register-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(U)}).catch(()=>{});
+    showToast(nameChanged?'✅ Info saved — your name is pending admin approval.':'✅ Info updated!');
+    rerender();
+  },'Save Changes');
+
+  ap(editSec, nameGrid, editEm, editPh, editErr, saveInfoBtn);
+  ap(acct, editSec);
 
   // Theme toggle
   ap(acct, row('🌙', _userPrefs.theme==='dark'?'Dark Mode':'Light Mode',
