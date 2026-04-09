@@ -42,6 +42,8 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .nb.yl{background:var(--yellow);color:#000}
 @keyframes flashNav{0%,100%{background:var(--bg2)}50%{background:rgba(232,197,71,.25)}}
 .flash-alert{animation:flashNav .6s ease 6}
+@keyframes pulseReview{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.7)}70%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
+.needs-review{animation:pulseReview 1.4s ease infinite!important;background:rgba(245,158,11,.2)!important;color:#f59e0b!important;border-color:rgba(245,158,11,.5)!important}
 .main{padding:28px;overflow-y:auto}
 .pg{display:none}.pg.on{display:block}
 .ph{margin-bottom:22px}.ph h2{font-size:24px;font-weight:900;margin-bottom:4px}.ph p{font-size:13px;color:var(--muted)}
@@ -687,8 +689,11 @@ function renderUsers(){
     const phoneTag = userObj&&userObj.phone ? `<span style="font-size:11px;color:#22c55e;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:4px;padding:2px 7px;margin-left:4px">📞 ${userObj.phone}</span>` : '';
     const profileStatusTag = isPending ? `<span style="font-size:11px;color:#f59e0b;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:2px 7px;margin-left:4px">⏳ PENDING</span>` : isApproved ? `<span style="font-size:11px;color:#22c55e;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:4px;padding:2px 7px;margin-left:4px">✅ VERIFIED</span>` : '';
     const photoTag = userObj&&userObj.photo ? `<img src="${userObj.photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${isPending?'#f59e0b':isApproved?'#22c55e':'#2a2a2a'};flex-shrink:0" alt="">` : `<div class="av">${name.charAt(0).toUpperCase()}</div>`;
-    const reviewBtns = isPending ? `<button class="btn bg" style="font-size:11px;background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="showUserProfile('${name}')">👁 Review</button>` : '';
-    d.innerHTML=`<div class="ct"><div style="display:flex;align-items:center;gap:12px">${photoTag}<div><div class="ctit" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">${name}${ipTag}${fullNameTag}${phoneTag}${profileStatusTag}</div><div class="cm">${posted} posted · ${r?'⭐'+r.avg.toFixed(1):'no rating'}${warned&&warned.length?' · ⚠️ '+warned.length+' warn(s)':''}</div></div></div>${statusTag}</div><div class="ca">${reviewBtns}${banned?`<button class="btn bg" style="font-size:11px" onclick="modCmd('unbanUser','${name}',{})">✓ Unban</button>`:`<button class="btn br" style="font-size:11px" onclick="modCmd('banUser','${name}',{reason:'Banned by admin'})">🚫 Ban</button>`}<button class="btn by" style="font-size:11px" onclick="document.getElementById('WN').value='${name}';go('wrn')">⚠️ Warn</button><button class="btn bgr" style="font-size:11px" onclick="document.getElementById('JQ').value='${name}';go('job');renderJobs()">📋 Jobs</button><button class="btn br" style="font-size:11px;margin-left:4px" onclick="if(confirm('Permanently delete account @${name}? This cannot be undone.'))modCmd('deleteUser','${name}',{})">🗑 Delete</button><button class="btn" style="font-size:11px;margin-left:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3)" onclick="showUserProfile('${name}')">👤 Profile</button></div>`;
+    const needsReview = nameNeedsApproval || isPending;
+    const reviewBtns = isPending ? `<button class="btn bg" style="font-size:11px;background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="showUserProfile('${name}',this)">👁 Review</button>` : '';
+    const profileBtnClass = needsReview ? 'btn needs-review' : 'btn';
+    const profileBtnStyle = needsReview ? 'font-size:11px;margin-left:4px' : 'font-size:11px;margin-left:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3)';
+    d.innerHTML=`<div class="ct"><div style="display:flex;align-items:center;gap:12px">${photoTag}<div><div class="ctit" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">${name}${ipTag}${fullNameTag}${phoneTag}${profileStatusTag}</div><div class="cm">${posted} posted · ${r?'⭐'+r.avg.toFixed(1):'no rating'}${warned&&warned.length?' · ⚠️ '+warned.length+' warn(s)':''}</div></div></div>${statusTag}</div><div class="ca">${reviewBtns}${banned?`<button class="btn bg" style="font-size:11px" onclick="modCmd('unbanUser','${name}',{})">✓ Unban</button>`:`<button class="btn br" style="font-size:11px" onclick="modCmd('banUser','${name}',{reason:'Banned by admin'})">🚫 Ban</button>`}<button class="btn by" style="font-size:11px" onclick="document.getElementById('WN').value='${name}';go('wrn')">⚠️ Warn</button><button class="btn bgr" style="font-size:11px" onclick="document.getElementById('JQ').value='${name}';go('job');renderJobs()">📋 Jobs</button><button class="btn br" style="font-size:11px;margin-left:4px" onclick="if(confirm('Permanently delete account @${name}? This cannot be undone.'))modCmd('deleteUser','${name}',{})">🗑 Delete</button><button class="${profileBtnClass}" style="${profileBtnStyle}" onclick="showUserProfile('${name}',this)">👤 Profile${needsReview?' 🔔':''}</button></div>`;
     el.appendChild(d);
   });
 }
@@ -979,7 +984,9 @@ async function vidSelected(input){
 async function uploadPromoVideo(){ document.getElementById('VID-in').click(); }
 
 
-function showUserProfile(name){
+function showUserProfile(name, triggerBtn){
+  // Stop the alert pulse on the button that was clicked
+  if(triggerBtn){ triggerBtn.classList.remove('needs-review'); triggerBtn.textContent='👤 Profile'; triggerBtn.style.background='rgba(167,139,250,.12)'; triggerBtn.style.color='#a78bfa'; triggerBtn.style.borderColor='rgba(167,139,250,.3)'; }
   const u=(db.users||[]).find(u=>u.name===name)||{};
   const r=db.ratings&&db.ratings[name];
   const posted=(db.jobs||[]).filter(j=>j.postedBy===name);
