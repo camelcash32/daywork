@@ -594,6 +594,20 @@ if(url === '/.well-known/assetlinks.json') {
     return;
   }
 
+  if (url === '/delete-feedback' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { index } = JSON.parse(body);
+        if (db.feedback && db.feedback[index] !== undefined) { db.feedback.splice(index, 1); dirty = true; }
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end('Error'); }
+    });
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST','Access-Control-Allow-Headers':'Content-Type'});
     res.end(); return;

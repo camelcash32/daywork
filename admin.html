@@ -613,7 +613,7 @@ function renderFeedback(){
   items.forEach((f,i)=>{
     const typeColor=f.type==='bug'?'#ef4444':f.type==='idea'?'#a78bfa':'#e8c547';
     const d=document.createElement('div'); d.className='card'; d.style.borderLeft=f.read?'':'3px solid '+typeColor;
-    d.innerHTML=`<div class="ct"><div><div class="ctit">${f.name||'Anonymous'} <span style="font-size:11px;color:${typeColor};background:rgba(255,255,255,.05);border:1px solid ${typeColor}33;border-radius:4px;padding:1px 7px;margin-left:6px;font-weight:700;text-transform:uppercase">${f.type||'general'}</span></div><div class="cm">${f.email||'no email'} · ${f.date||''}</div></div>${f.read?'':'<span class="tag" style="background:rgba(232,197,71,.15);color:#e8c547;border:1px solid rgba(232,197,71,.3)">NEW</span>'}</div><div class="cb" style="margin-top:8px;font-size:13px;color:#ccc;line-height:1.6">${f.message||''}</div><div class="ca" style="margin-top:10px">${!f.read?`<button class="btn bg" style="font-size:11px" onclick="markFeedbackRead(${i})">✓ Mark Read</button>`:'<span style="font-size:12px;color:#444">Read</span>'}</div>`;
+    d.innerHTML=`<div class="ct"><div><div class="ctit">${f.name||'Anonymous'} <span style="font-size:11px;color:${typeColor};background:rgba(255,255,255,.05);border:1px solid ${typeColor}33;border-radius:4px;padding:1px 7px;margin-left:6px;font-weight:700;text-transform:uppercase">${f.type||'general'}</span></div><div class="cm">${f.email||'no email'} · ${f.date||''}</div></div>${f.read?'':'<span class="tag" style="background:rgba(232,197,71,.15);color:#e8c547;border:1px solid rgba(232,197,71,.3)">NEW</span>'}</div><div class="cb" style="margin-top:8px;font-size:13px;color:#ccc;line-height:1.6">${f.message||''}</div><div class="ca" style="margin-top:10px">${!f.read?`<button class="btn bg" style="font-size:11px" onclick="markFeedbackRead(${i})">✓ Mark Read</button>`:''}<button class="btn br" style="font-size:11px;margin-left:4px" onclick="deleteFeedback(${i})">🗑 Delete</button></div>`;
     el.appendChild(d);
   });
 }
@@ -621,6 +621,12 @@ function markFeedbackRead(i){
   if(!db.feedback||!db.feedback[i])return;
   db.feedback[i].read=true;
   fetch('/mark-feedback-read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:i})}).catch(()=>{});
+  renderFeedback(); updBadges();
+}
+function deleteFeedback(i){
+  if(!db.feedback||!db.feedback[i])return;
+  db.feedback.splice(i,1);
+  fetch('/delete-feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:i})}).catch(()=>{});
   renderFeedback(); updBadges();
 }
 
