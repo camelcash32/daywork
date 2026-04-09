@@ -1325,6 +1325,11 @@ if(url === '/.well-known/assetlinks.json') {
           // Merge profile fields when user resubmits
           const existing = db.users[idx];
           let changed = false;
+          // Sync adminMessages read status back from client (never overwrite server messages with fewer)
+          if(Array.isArray(user.adminMessages) && Array.isArray(existing.adminMessages)){
+            user.adminMessages.forEach((cm,i)=>{ if(existing.adminMessages[i] && cm.read) existing.adminMessages[i].read=true; });
+            changed = true;
+          }
           ['fullName','firstName','lastName','nameApproved','phone','photo','profileComplete','revokeReason'].forEach(k => {
             if(user[k] !== undefined && user[k] !== existing[k]){ existing[k]=user[k]; changed=true; }
           });

@@ -2708,6 +2708,15 @@ function wsConnect(){
           if(Array.isArray(msg.db.bulletin)) bulletinPosts = msg.db.bulletin;
           if(Array.isArray(msg.db.workers)) workerPosts = msg.db.workers.filter(p=>!p.expiresAt||p.expiresAt>Date.now());
           console.log('[WS] init: '+jobs.length+' jobs loaded');
+          // Sync admin messages from server to logged-in user
+          if(U && Array.isArray(msg.db.users)){
+            const su = msg.db.users.find(u=>u.id===U.id||u.email===U.email);
+            if(su && su.adminMessages && su.adminMessages.length>(U.adminMessages||[]).length){
+              U={...U, adminMessages:su.adminMessages};
+              save('currentUser',U);
+              _newAdminMsg=true;
+            }
+          }
           _wsSynced = true;
           rerender();
           _showConn(true);
@@ -2768,6 +2777,9 @@ function wsConnect(){
                   let changed = false;
                   if(su.profileComplete !== U.profileComplete){ U={...U, profileComplete:su.profileComplete}; changed=true; }
                   if(su.revokeReason && su.revokeReason !== U.revokeReason){ U={...U, revokeReason:su.revokeReason, fullName:'', phone:'', photo:''}; changed=true; }
+                  if(su.adminMessages && su.adminMessages.length>(U.adminMessages||[]).length){
+                    U={...U, adminMessages:su.adminMessages}; changed=true; _newAdminMsg=true;
+                  }
                   if(changed){ save('currentUser',U); rerender(); }
                 }
               }
