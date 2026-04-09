@@ -2457,8 +2457,10 @@ function showNotifPanel(userName) {
         const markBtn=btn(null,{background:"none",border:"none",color:"#555",fontSize:"11px",cursor:"pointer",fontFamily:"inherit",padding:"4px 0 0",textDecoration:"underline"},()=>{
           U.adminMessages[idx].read=true;
           save('currentUser',U);
-          ov.remove();
-          rerender();
+          // Update card in place — don't close the panel
+          msgCard.style.background='#111';
+          msgCard.style.border='1px solid #1a1a1a';
+          markBtn.remove();
         },"Mark as read");
         ap(msgCard,markBtn);
       }
