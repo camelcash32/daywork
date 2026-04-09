@@ -40,6 +40,8 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 .ni .ic{font-size:15px;width:20px;text-align:center}
 .nb{margin-left:auto;background:var(--accent);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 6px;min-width:18px;text-align:center}
 .nb.yl{background:var(--yellow);color:#000}
+@keyframes flashNav{0%,100%{background:var(--bg2)}50%{background:rgba(232,197,71,.25)}}
+.flash-alert{animation:flashNav .6s ease 6}
 .main{padding:28px;overflow-y:auto}
 .pg{display:none}.pg.on{display:block}
 .ph{margin-bottom:22px}.ph h2{font-size:24px;font-weight:900;margin-bottom:4px}.ph p{font-size:13px;color:var(--muted)}
@@ -285,6 +287,8 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
       <div class="pg" id="p-rep">
         <div class="ph"><h2>Reports</h2><p>User-submitted reports — take action below</p></div>
         <div id="REP"></div>
+        <div class="ph" style="margin-top:28px"><h2>💬 Feedback</h2><p>Messages submitted via the in-app feedback button</p></div>
+        <div id="FEEDBACK"></div>
       </div>
 
       <div class="pg" id="p-ban">
@@ -433,7 +437,7 @@ const ADMINS = {
 // Recovery code for forgot password (change this!)
 const RECOVERY_CODE = 'DAYWORK-RESET-2024';
 let currentAdmin = null;
-let ws, db={jobs:[],ratings:{},chats:{},reports:[]};
+let ws, db={jobs:[],ratings:{},chats:{},reports:[],feedback:[]};
 let mod={bannedUsers:[],bannedIPs:[],flaggedJobs:[],errors:[],modLog:[],warnings:{},wordFilter:[],autoFlag:true};
 let fLog=[], fErr=[];
 
@@ -528,7 +532,7 @@ function connectWS(){
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
     if(m.type==='init'){ if(m.db)db=m.db; if(m.db&&m.db.bulletin)renderBulletin(m.db.bulletin); if(m.mod)applyMod(m.mod); rAll(); }
-    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; if(m.key==='visitLog')db.visitLog=m.val; rAll(); }
+    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; if(m.key==='visitLog')db.visitLog=m.val; if(m.key==='feedback'){db.feedback=m.val;flashFeedback();} rAll(); }
     if(m.type==='modUpdate') applyMod(m.mod);
     if(m.type==='fullMod'){ mod={...mod,...m.mod}; if(m.mod.errors)fErr=m.mod.errors; if(m.mod.modLog)fLog=m.mod.modLog; rAll(); }
     if(m.type==='modLog'){ fLog=m.log||[]; fErr=m.errors||[]; rAll(); }
@@ -561,7 +565,7 @@ function go(pg){
   if(pg==='ref') loadRefunds();
 }
 
-function rAll(){ rStats(); renderReports(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderVisits(); renderFaq(); updBadges(); updSw(); }
+function rAll(){ rStats(); renderReports(); renderFeedback(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderVisits(); renderFaq(); updBadges(); updSw(); }
 
 function rStats(){
   const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
@@ -575,7 +579,15 @@ function rStats(){
 }
 function updBadges(){
   const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
-  st('b-rep',pr||''); st('b-job',(mod.flaggedJobs||[]).length||''); st('b-err',fErr.length||'');
+  const unreadFb=(db.feedback||[]).filter(f=>!f.read).length;
+  const repTotal=pr+unreadFb;
+  st('b-rep',repTotal||''); st('b-job',(mod.flaggedJobs||[]).length||''); st('b-err',fErr.length||'');
+}
+function flashFeedback(){
+  const btn=document.getElementById('n-rep');
+  if(!btn)return;
+  btn.classList.add('flash-alert');
+  setTimeout(()=>btn.classList.remove('flash-alert'),4000);
 }
 function updSw(){
   const sw=document.getElementById('sw-af'); if(sw){ sw.classList.toggle('on',!!mod.autoFlag); }
@@ -591,6 +603,25 @@ function renderReports(){
     d.innerHTML=`<div class="ct"><div><div class="ctit">Against <span style="color:var(--accent)">${r.reportedUser||'?'}</span></div><div class="cm">by ${r.reporter||'anon'} · ${r.date||''}</div></div><span class="tag ${sc}">${r.status||'pending'}</span></div><div class="cb">${r.reason||'No reason'}</div><div class="ca">${r.status==='pending'?`<button class="btn br" onclick="modCmd('banUser','${r.reportedUser||''}',{reason:'Reported'}); modCmd('resolveReport',${i},{status:'resolved'})">🚫 Ban</button><button class="btn by" onclick="modCmd('warnUser','${r.reportedUser||''}',{reason:'You were reported: ${(r.reason||'').replace(/'/g,"\\'")}'}); modCmd('resolveReport',${i},{status:'resolved'})">⚠️ Warn</button><button class="btn bg" onclick="modCmd('resolveReport',${i},{status:'resolved'})">✓ Resolve</button><button class="btn bgr" onclick="modCmd('resolveReport',${i},{status:'dismissed'})">Dismiss</button>`:'<span style="color:var(--muted);font-size:12px">Closed</span>'}</div>`;
     el.appendChild(d);
   });
+}
+
+function renderFeedback(){
+  const el=document.getElementById('FEEDBACK'); if(!el)return;
+  const items=db.feedback||[];
+  if(!items.length){ el.innerHTML=emp('💬','No feedback yet'); return; }
+  el.innerHTML='';
+  items.forEach((f,i)=>{
+    const typeColor=f.type==='bug'?'#ef4444':f.type==='idea'?'#a78bfa':'#e8c547';
+    const d=document.createElement('div'); d.className='card'; d.style.borderLeft=f.read?'':'3px solid '+typeColor;
+    d.innerHTML=`<div class="ct"><div><div class="ctit">${f.name||'Anonymous'} <span style="font-size:11px;color:${typeColor};background:rgba(255,255,255,.05);border:1px solid ${typeColor}33;border-radius:4px;padding:1px 7px;margin-left:6px;font-weight:700;text-transform:uppercase">${f.type||'general'}</span></div><div class="cm">${f.email||'no email'} · ${f.date||''}</div></div>${f.read?'':'<span class="tag" style="background:rgba(232,197,71,.15);color:#e8c547;border:1px solid rgba(232,197,71,.3)">NEW</span>'}</div><div class="cb" style="margin-top:8px;font-size:13px;color:#ccc;line-height:1.6">${f.message||''}</div><div class="ca" style="margin-top:10px">${!f.read?`<button class="btn bg" style="font-size:11px" onclick="markFeedbackRead(${i})">✓ Mark Read</button>`:'<span style="font-size:12px;color:#444">Read</span>'}</div>`;
+    el.appendChild(d);
+  });
+}
+function markFeedbackRead(i){
+  if(!db.feedback||!db.feedback[i])return;
+  db.feedback[i].read=true;
+  fetch('/mark-feedback-read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:i})}).catch(()=>{});
+  renderFeedback(); updBadges();
 }
 
 function banUser(){ const n=document.getElementById('BN').value.trim(), r=document.getElementById('BR').value.trim(); if(!n)return; modCmd('banUser',n,{reason:r||'Banned by admin'}); document.getElementById('BN').value=''; document.getElementById('BR').value=''; }

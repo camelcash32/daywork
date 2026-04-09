@@ -474,7 +474,8 @@ if(url === '/.well-known/assetlinks.json') {
         if (!db.feedback) db.feedback = [];
         db.feedback.unshift({ name, email, type, message, date: new Date().toLocaleDateString(), read: false });
         if (db.feedback.length > 500) db.feedback = db.feedback.slice(0, 500);
-        saveDB();
+        dirty = true;
+        broadcast({ type: 'update', key: 'feedback', val: db.feedback });
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         res.end(JSON.stringify({ ok: true }));
       } catch(e) {
@@ -577,6 +578,20 @@ if(url === '/.well-known/assetlinks.json') {
   if (url === '/feedback' && req.method === 'OPTIONS') {
     res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Content-Type'});
     res.end(); return;
+  }
+
+  if (url === '/mark-feedback-read' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { index } = JSON.parse(body);
+        if (db.feedback && db.feedback[index]) { db.feedback[index].read = true; dirty = true; }
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end('Error'); }
+    });
+    return;
   }
 
   if (req.method === 'OPTIONS') {
