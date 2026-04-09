@@ -1840,6 +1840,7 @@ function handleModCommand(msg, ws, meta) {
       if (u) {
         u.nameApproved = true;
         dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
         clients.forEach(c => {
           const m = clientMeta.get(c);
           if (m && m.user === target) c.send(JSON.stringify({ type: 'nameApproved' }));
