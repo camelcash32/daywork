@@ -1076,13 +1076,24 @@ function showUserProfile(name){
       ${jobRows}
     </div>
     ${warnRows}
-    <div style="display:flex;gap:8px;margin-top:22px;flex-wrap:wrap;padding-top:18px;border-top:1px solid #1a1a1a">
+    <div style="margin-top:20px;border-top:1px solid #1a1a1a;padding-top:18px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:#444;margin-bottom:8px;text-transform:uppercase">💬 Send Message</div>
+      <textarea id="adminMsgText" placeholder="Type a message to ${name}…" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:10px;padding:12px;color:#f0ede8;font-family:'Syne',sans-serif;font-size:13px;resize:vertical;min-height:80px;outline:none;box-sizing:border-box;margin-bottom:8px"></textarea>
+      <button onclick="sendAdminMsg('${name}')" style="width:100%;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:800;cursor:pointer;font-family:'Syne',sans-serif">📨 Send Message</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;padding-top:16px;border-top:1px solid #1a1a1a">
       ${banned?`<button class="btn bg" style="font-size:12px" onclick="modCmd('unbanUser','${name}',{});closeUserProfile()">✓ Unban</button>`:`<button class="btn br" style="font-size:12px" onclick="modCmd('banUser','${name}',{reason:'Banned by admin'});closeUserProfile()">🚫 Ban</button>`}
       <button class="btn by" style="font-size:12px" onclick="closeUserProfile();document.getElementById('WN').value='${name}';go('wrn')">⚠️ Warn</button>
       <button class="btn br" style="font-size:12px" onclick="if(confirm('Permanently delete @${name}?')){modCmd('deleteUser','${name}',{});closeUserProfile()}">🗑 Delete Account</button>
     </div>
   </div>`;
   document.getElementById('profileModal').style.display='flex';
+}
+function sendAdminMsg(name){
+  const txt=(document.getElementById('adminMsgText')||{}).value||'';
+  if(!txt.trim()){alert('Please type a message first.');return;}
+  modCmd('sendAdminMessage',name,{message:txt.trim()});
+  closeUserProfile();
 }
 function profileApprove(name){ modCmd('approveProfile',name,{}); closeUserProfile(); }
 function profileToggleReject(){ const p=document.getElementById('profRejectPanel'); p.style.display=p.style.display==='block'?'none':'block'; }

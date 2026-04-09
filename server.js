@@ -1810,6 +1810,26 @@ function handleModCommand(msg, ws, meta) {
       break;
     }
 
+    case 'sendAdminMessage': {
+      const u = (db.users||[]).find(u => u.name === target);
+      const msgText = msg.message || '';
+      if (!msgText) break;
+      if (u) {
+        if (!u.adminMessages) u.adminMessages = [];
+        u.adminMessages.push({ text: msgText, date: new Date().toLocaleDateString(), read: false });
+        dirty = true;
+      }
+      // Send live if user is online
+      let delivered = false;
+      clients.forEach(c => {
+        const m = clientMeta.get(c);
+        if (m && m.user === target) { c.send(JSON.stringify({ type: 'adminMessage', message: msgText })); delivered = true; }
+      });
+      modLog('sendAdminMessage', `Messaged "${target}": ${msgText.slice(0,60)}`, by);
+      ws.send(JSON.stringify({ type:'toast', message: delivered ? '✅ Message delivered — user is online.' : '📨 Message saved — user will see it when they log in.' }));
+      break;
+    }
+
     case 'approveName': {
       const u = (db.users||[]).find(u => u.name === target);
       if (u) {

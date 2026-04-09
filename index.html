@@ -47,6 +47,8 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
 /* Blink animation for applicants tab */
 @keyframes blink-red{0%,100%{color:#ef4444;background:rgba(239,68,68,.2);box-shadow:0 0 8px #ef4444}50%{color:#fff;background:rgba(239,68,68,.5);box-shadow:0 0 16px #ef4444,0 0 30px #ef4444}}
 .blink-alert{animation:blink-red 0.6s ease-in-out infinite !important;border-radius:8px;padding:6px 14px !important}
+@keyframes bell-flash{0%,100%{color:#e8c547;background:rgba(232,197,71,.15);box-shadow:0 0 8px #e8c547}50%{color:#fff;background:rgba(232,197,71,.4);box-shadow:0 0 18px #e8c547,0 0 32px #e8c547}}
+.bell-flash{animation:bell-flash 0.7s ease-in-out infinite !important;border-radius:8px;border-color:rgba(232,197,71,.6)!important}
 
 
 /* ── MOBILE RESPONSIVE ─────────────────────────────────────── */
@@ -925,6 +927,7 @@ function syncBar(onImport){
 
 
 let U=null, tab="post", selJob=null, zipIn2=load("seekerZip",""), catFil="All", searchQ="", viewingProfile=null, radiusMi=load("seekerRadius",25);
+let _newAdminMsg=false;
 let mode=load("userMode","seeker");
 let jobs=[]; // populated by server via WebSocket
 function pruneExpired(){return pruneExpiredJobs(jobs||[]);}
@@ -975,9 +978,12 @@ function renderApp(){
   const hdrRight=div(null,{display:"flex",alignItems:"center",gap:"5px",flexWrap:"wrap"});
   if(mode==="poster") ap(hdrRight,navPost,navApps,div(null,{width:"1px",height:"20px",background:"#222",margin:"0 4px"}));
   const myNotifs=getNotifications(U.name);
-  const bellBtn=btn(null,{background:myNotifs.length>0?"rgba(232,197,71,.1)":"none",border:myNotifs.length>0?"1px solid rgba(232,197,71,.3)":"1px solid transparent",borderRadius:"8px",color:myNotifs.length>0?"#e8c547":"#555",fontSize:"13px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto",position:"relative"},()=>showNotifPanel(U.name),
-    "🔔"+(myNotifs.length>0?" "+myNotifs.length:"")
+  const unreadAdminMsgs=(U.adminMessages||[]).filter(m=>!m.read).length;
+  const totalNotifs=myNotifs.length+unreadAdminMsgs;
+  const bellBtn=btn(null,{background:totalNotifs>0?"rgba(232,197,71,.1)":"none",border:totalNotifs>0?"1px solid rgba(232,197,71,.3)":"1px solid transparent",borderRadius:"8px",color:totalNotifs>0?"#e8c547":"#555",fontSize:"13px",cursor:"pointer",padding:"5px 10px",fontFamily:"inherit",width:"auto",position:"relative"},()=>{_newAdminMsg=false;showNotifPanel(U.name);},
+    "🔔"+(totalNotifs>0?" "+totalNotifs:"")
   );
+  if(_newAdminMsg) bellBtn.classList.add('bell-flash');
   const nameBtn=el("button",null,{background:"none",border:"1px solid #2a2a2a",
       borderRadius:"8px",color:"#ccc",fontFamily:"inherit",fontSize:"13px",cursor:"pointer",
       padding:"5px 12px",display:"inline-flex",alignItems:"center",gap:"6px"});
@@ -2418,19 +2424,47 @@ function getNotifications(userName) {
 
 function showNotifPanel(userName) {
   const notifs = getNotifications(userName);
+  const adminMsgs = (U&&U.adminMessages)||[];
   const ov = div(null,{position:"fixed",inset:"0",background:"rgba(0,0,0,.6)",display:"flex",alignItems:"flex-start",justifyContent:"flex-end",zIndex:"1000",padding:"60px 16px 0"});
   const panel = div(null,{background:"#161616",border:"1px solid #2a2a2a",borderRadius:"14px",width:"320px",maxHeight:"70vh",overflowY:"auto",boxShadow:"0 8px 32px rgba(0,0,0,.6)"});
   ap(panel, div(null,{padding:"14px 18px",borderBottom:"1px solid #1a1a1a",display:"flex",justifyContent:"space-between",alignItems:"center"},
     ap(el("p",null,{fontWeight:"700",fontSize:"15px"}),"🔔 Notifications"),
     btn(null,{background:"none",border:"none",color:"#555",fontSize:"18px",cursor:"pointer"},()=>ov.remove(),"✕")
   ));
-  if (!notifs.length) {
+  const hasAny = notifs.length||adminMsgs.length;
+  if (!hasAny) {
     ap(panel, div(null,{padding:"30px",textAlign:"center",color:"#333"},
       ap(el("p",null,{fontSize:"28px",marginBottom:"8px"}),"🔔"),
       ap(el("p",null,{fontSize:"13px"}),"No notifications.")
     ));
   } else {
     const list = div(null,{display:"flex",flexDirection:"column",gap:"2px",padding:"8px"});
+    // Admin messages first
+    adminMsgs.slice().reverse().forEach((m,ri)=>{
+      const idx=adminMsgs.length-1-ri;
+      const msgCard=div(null,{background:m.read?"#111":"rgba(232,197,71,.06)",border:"1px solid "+(m.read?"#1a1a1a":"rgba(232,197,71,.25)"),borderRadius:"10px",padding:"12px 14px",marginBottom:"4px"});
+      ap(msgCard,
+        div(null,{display:"flex",gap:"10px",alignItems:"flex-start"},
+          ap(el("span",null,{fontSize:"20px",flexShrink:"0"}),"⚡"),
+          div(null,{flex:"1"},
+            ap(el("p",null,{fontSize:"11px",fontWeight:"700",color:"#e8c547",marginBottom:"4px",letterSpacing:".05em"}),"MESSAGE FROM ADMIN"),
+            ap(el("p",null,{fontSize:"13px",color:"#e8e6f0",lineHeight:"1.5",marginBottom:"4px"}),m.text),
+            ap(el("p",null,{fontSize:"10px",color:"#444"}),m.date||'')
+          )
+        )
+      );
+      if(!m.read){
+        const markBtn=btn(null,{background:"none",border:"none",color:"#555",fontSize:"11px",cursor:"pointer",fontFamily:"inherit",padding:"4px 0 0",textDecoration:"underline"},()=>{
+          U.adminMessages[idx].read=true;
+          save('currentUser',U);
+          ov.remove();
+          rerender();
+        },"Mark as read");
+        ap(msgCard,markBtn);
+      }
+      ap(list,msgCard);
+    });
+    // Job notifications
     notifs.forEach(n => {
       const row = btn(null,{
         background:"#111",border:"1px solid #1a1a1a",borderRadius:"10px",padding:"12px 14px",
@@ -2679,6 +2713,16 @@ function wsConnect(){
           _showConn(true);
         }
 
+        if(msg.type==='adminMessage'){
+          if(U){
+            if(!U.adminMessages) U.adminMessages=[];
+            U.adminMessages.push({text:msg.message, date:new Date().toLocaleDateString(), read:false});
+            save('currentUser',U);
+          }
+          _newAdminMsg=true;
+          showToast('⚡ New message from Admin — check your notifications');
+          rerender();
+        }
         if(msg.type==='nameApproved'){
           if(U){ U={...U,nameApproved:true}; save('currentUser',U); }
           showToast('✅ Your name has been approved! Welcome to GoDayWork.');
