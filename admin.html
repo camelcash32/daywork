@@ -534,7 +534,7 @@ function connectWS(){
   ws.onmessage=e=>{
     const m=JSON.parse(e.data);
     if(m.type==='init'){ if(m.db)db=m.db; if(m.db&&m.db.bulletin)renderBulletin(m.db.bulletin); if(m.mod)applyMod(m.mod); rAll(); }
-    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users')db.users=m.val; if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; if(m.key==='visitLog')db.visitLog=m.val; if(m.key==='feedback'){db.feedback=m.val;flashFeedback();} rAll(); }
+    if(m.type==='update'){ if(m.key==='jobs')db.jobs=m.val; if(m.key==='ratings')db.ratings=m.val; if(m.key==='reports')db.reports=m.val; if(m.key==='users'){db.users=m.val; if(_openProfileName){showUserProfile(_openProfileName);}} if(m.key==='bulletin')renderBulletin(m.val); if(m.key==='faq')db.faq=m.val; if(m.key==='visitLog')db.visitLog=m.val; if(m.key==='feedback'){db.feedback=m.val;flashFeedback();} rAll(); }
     if(m.type==='modUpdate') applyMod(m.mod);
     if(m.type==='fullMod'){ mod={...mod,...m.mod}; if(m.mod.errors)fErr=m.mod.errors; if(m.mod.modLog)fLog=m.mod.modLog; rAll(); }
     if(m.type==='modLog'){ fLog=m.log||[]; fErr=m.errors||[]; rAll(); }
@@ -984,7 +984,9 @@ async function vidSelected(input){
 async function uploadPromoVideo(){ document.getElementById('VID-in').click(); }
 
 
+let _openProfileName = null;
 function showUserProfile(name, triggerBtn){
+  _openProfileName = name;
   // Stop the alert pulse on the button that was clicked
   if(triggerBtn){ triggerBtn.classList.remove('needs-review'); triggerBtn.textContent='👤 Profile'; triggerBtn.style.background='rgba(167,139,250,.12)'; triggerBtn.style.color='#a78bfa'; triggerBtn.style.borderColor='rgba(167,139,250,.3)'; }
   const u=(db.users||[]).find(u=>u.name===name)||{};
@@ -1013,22 +1015,56 @@ function showUserProfile(name, triggerBtn){
   const warnRows=warned.length?`<div style="margin-top:18px"><div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:#f59e0b;margin-bottom:8px;text-transform:uppercase">Warnings</div>${warned.map(w=>`<div style="font-size:12px;color:#f59e0b;padding:6px 10px;background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:6px;margin-bottom:5px">${w.msg}</div>`).join('')}</div>`:'';
 
   const nameApprovedNoPhoto = u.nameApproved===true && !u.photo && !isPending && !isApproved;
+
+  // Individual field approval helpers
+  const fieldRow=(label,value,field,approved)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #1a1a1a">
+      <div style="flex:1">
+        <div style="font-size:10px;color:#555;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:3px">${label}</div>
+        <div style="font-size:13px;color:#e8e6f0;font-weight:700">${value||'—'}</div>
+      </div>
+      ${approved
+        ? `<span style="font-size:11px;color:#22c55e;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);border-radius:6px;padding:3px 10px;font-weight:700;white-space:nowrap">✅ Approved</span>
+           <button onclick="profileRejectField('${name}','${field}')" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;white-space:nowrap">✕ Reject</button>`
+        : `<button onclick="profileApproveField('${name}','${field}')" style="background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.35);border-radius:6px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;white-space:nowrap">✅ Approve</button>
+           <button onclick="profileRejectField('${name}','${field}')" style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;white-space:nowrap">✕ Reject</button>`
+      }
+    </div>`;
+
+  const photoFieldHtml = u.photo
+    ? fieldRow('📷 Profile Photo','Photo submitted',  'photo', u.photoApproved)
+    : `<div style="padding:10px 0;border-bottom:1px solid #1a1a1a;font-size:12px;color:#555">📷 Profile Photo — <em>not submitted yet</em></div>`;
+  const nameFieldHtml  = fieldRow('👤 Name', (u.firstName||'')+(u.lastName?' '+u.lastName:'') || u.fullName || u.name, 'name', u.nameApproved===true);
+  const phoneFieldHtml = u.phone
+    ? fieldRow('📞 Phone Number', u.phone, 'phone', u.phoneApproved)
+    : `<div style="padding:10px 0;border-bottom:1px solid #1a1a1a;font-size:12px;color:#555">📞 Phone Number — <em>not submitted yet</em></div>`;
+
+  const allApproved = u.photoApproved && u.nameApproved===true && u.phoneApproved;
+
   const approveRejectHtml=isPending?`
-    <div style="display:flex;gap:10px;margin-top:20px">
-      <button class="approve-btn" onclick="profileApprove('${name}')">✅ Approve</button>
-      <button class="reject-btn" onclick="profileToggleReject()">❌ Reject</button>
+    <div style="margin-top:20px;background:#0a0a12;border:1px solid #1e1e2e;border-radius:12px;padding:16px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:#a78bfa;margin-bottom:12px;text-transform:uppercase">⏳ Profile Review</div>
+      ${photoFieldHtml}
+      ${nameFieldHtml}
+      ${phoneFieldHtml}
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="approve-btn" style="flex:1;opacity:${allApproved?1:.4};cursor:${allApproved?'pointer':'not-allowed'}" ${allApproved?`onclick="profileApprove('${name}')"`:'disabled'}>✅ Verify Account</button>
+        <button class="reject-btn" onclick="profileToggleReject()" style="flex:0 0 auto">❌ Reject</button>
+      </div>
+      <div style="font-size:11px;color:#444;margin-top:8px;text-align:center">${allApproved?'All items approved — ready to verify!':'Approve all 3 items above to enable verification'}</div>
     </div>
     <div class="reject-panel" id="profRejectPanel">
       <p style="font-size:13px;color:#888;margin-bottom:4px">What's the reason for rejection?</p>
       <div class="reason-btns">
         <button class="reason-btn" onclick="profileReject('${name}','photo')"><span class="reason-icon">📷</span>Profile Photo</button>
         <button class="reason-btn" onclick="profileReject('${name}','name')"><span class="reason-icon">👤</span>Name</button>
+        <button class="reason-btn" onclick="profileReject('${name}','phone')"><span class="reason-icon">📞</span>Phone Number</button>
       </div>
     </div>`
   :nameApprovedNoPhoto?`
     <div style="margin-top:20px;background:#0d0d0a;border:1px solid rgba(232,197,71,.2);border-radius:12px;padding:14px">
-      <div style="font-size:12px;color:#e8c547;font-weight:700;margin-bottom:6px">✅ Name approved — waiting for profile photo</div>
-      <div style="font-size:12px;color:#666;line-height:1.5">Their name has been approved. They still need to upload a profile photo and resubmit before you can fully verify them.</div>
+      <div style="font-size:12px;color:#e8c547;font-weight:700;margin-bottom:6px">✅ Name approved — waiting for profile photo &amp; phone</div>
+      <div style="font-size:12px;color:#666;line-height:1.5">Their name has been approved. They still need to upload a profile photo and phone number before you can verify them.</div>
     </div>`
   :isApproved?`
     <div style="margin-top:20px;background:#0a1a0a;border:1px solid rgba(34,197,94,.15);border-radius:12px;padding:14px">
@@ -1109,6 +1145,8 @@ function sendAdminMsg(name){
   closeUserProfile();
 }
 function profileApprove(name){ modCmd('approveProfile',name,{}); closeUserProfile(); }
+function profileApproveField(name,field){ modCmd('approveField',name,{field}); }
+function profileRejectField(name,field){ modCmd('rejectField',name,{field}); }
 function profileToggleReject(){ const p=document.getElementById('profRejectPanel'); p.style.display=p.style.display==='block'?'none':'block'; }
 function profileReject(name,reason){
   const msg=reason==='photo'?'Your profile photo was rejected. Please upload a clear, real photo of yourself and resubmit.':'Your name was rejected. Please provide your real full legal name and resubmit.';
@@ -1121,7 +1159,7 @@ function profileRevoke(name,reason){
   modCmd('revokeProfile',name,{reason:msg});
   closeUserProfile();
 }
-function closeUserProfile(){ document.getElementById('profileModal').style.display='none'; }
+function closeUserProfile(){ document.getElementById('profileModal').style.display='none'; _openProfileName=null; }
 </script>
 
 <!-- User Profile Modal -->

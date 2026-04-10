@@ -1867,6 +1867,50 @@ function handleModCommand(msg, ws, meta) {
       break;
     }
 
+    case 'approveField': {
+      const u = (db.users||[]).find(u => u.name === target);
+      const field = msg.field; // 'photo', 'name', or 'phone'
+      if (u && ['photo','name','phone'].includes(field)) {
+        if (field === 'photo') u.photoApproved = true;
+        else if (field === 'name') u.nameApproved = true;
+        else if (field === 'phone') u.phoneApproved = true;
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        // Notify user if online
+        if (field === 'name') {
+          clients.forEach(c => {
+            const m = clientMeta.get(c);
+            if (m && m.user === target) c.send(JSON.stringify({ type: 'nameApproved' }));
+          });
+        }
+        modLog('approveField', `Approved ${field} for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'rejectField': {
+      const u = (db.users||[]).find(u => u.name === target);
+      const field = msg.field;
+      if (u && ['photo','name','phone'].includes(field)) {
+        if (field === 'photo') { u.photoApproved = false; u.photo = ''; }
+        else if (field === 'name') {
+          u.nameApproved = false;
+          // Notify user their name was rejected so they can resubmit
+          clients.forEach(c => {
+            const m = clientMeta.get(c);
+            if (m && m.user === target) c.send(JSON.stringify({ type: 'nameRejected' }));
+          });
+        }
+        else if (field === 'phone') { u.phoneApproved = false; u.phone = ''; }
+        // If any field is rejected, pull profile back to pending
+        if (u.profileComplete === true) u.profileComplete = 'pending';
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        modLog('rejectField', `Rejected ${field} for "${target}"`, by);
+      }
+      break;
+    }
+
     case 'deleteUser': {
       // Add email to blocklist so they can't re-register
       const deletedUser = (db.users||[]).find(u => u.name === target);
