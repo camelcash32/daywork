@@ -1911,6 +1911,22 @@ function handleModCommand(msg, ws, meta) {
       break;
     }
 
+    case 'togglePostLimit': {
+      const u = (db.users||[]).find(u => u.name === target);
+      if (u) {
+        u.noPostLimit = !u.noPostLimit;
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        // Tell the user live so their next post uses the new setting
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === target) c.send(JSON.stringify({ type: 'init', user: u, jobs: db.jobs, ratings: db.ratings }));
+        });
+        modLog('togglePostLimit', `${u.noPostLimit ? 'Removed' : 'Restored'} 24h post limit for "${target}"`, by);
+      }
+      break;
+    }
+
     case 'deleteUser': {
       // Add email to blocklist so they can't re-register
       const deletedUser = (db.users||[]).find(u => u.name === target);

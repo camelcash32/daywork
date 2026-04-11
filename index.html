@@ -199,6 +199,7 @@ function fmtName(name){
 
 // Expiry helpers
 function getTimeLeft(expiresAt){
+  if(!expiresAt) return {ms:Infinity,h:999,m:0,s:0,noLimit:true};
   const ms = expiresAt - Date.now();
   if(ms<=0) return null;
   const h=Math.floor(ms/3600000);
@@ -207,6 +208,7 @@ function getTimeLeft(expiresAt){
   return {ms,h,m,s};
 }
 function fmtTimeLeft(expiresAt){
+  if(!expiresAt) return "No expiry";
   const t=getTimeLeft(expiresAt);
   if(!t) return "Expired";
   if(t.h>0) return t.h+"h "+t.m+"m left";
@@ -1369,7 +1371,7 @@ function doPublish(){
   if(!U.profileComplete){checkProfileComplete(doPublish);return;}
   const fzInfo=ZIP_DATA[formS.zip]||{city:formS.zip,state:""};
   const loc=fzInfo.state?fzInfo.city+", "+fzInfo.state:fzInfo.city;
-  const expiresAt=Date.now()+DAY_MS;
+  const expiresAt=U.noPostLimit ? null : Date.now()+DAY_MS;
   // Auto-generate pay display string from payAmount + payType
   formS.pay = formS.payAmount ? "$"+parseFloat(formS.payAmount).toFixed(2)+(formS.payType==="hourly"?"/hr":" flat")+" "+(formS.payScope==="total"?"total":"each") : formS.pay;
   if(editId){
@@ -1377,7 +1379,7 @@ function doPublish(){
     showToast("✏️ Job updated! Timer reset to 24h.");
   } else {
     jobs=[...jobs,{id:Date.now(),...formS,location:loc,slots:parseInt(formS.slots),filled:0,postedBy:U.name,applicants:[],completedPairs:[],priority:false,expiresAt,notifyEmail:formS.notifyEmail,notifyEmailAddr:formS.notifyEmailAddr,notifyText:formS.notifyText,notifyPhone:formS.notifyPhone}];
-    showToast("✅ Job posted! Expires in 24 hours.");
+    showToast(U.noPostLimit ? "✅ Job posted! No expiry." : "✅ Job posted! Expires in 24 hours.");
   }
   save("jobs",jobs);editId=null;
   formS={title:"",category:"General Labor",pay:"",payAmount:"",payType:"flat",payScope:"each",duration:"",zip:"",date:"",slots:"1",description:"",urgent:false,photo:""};
@@ -2339,7 +2341,7 @@ function showRateModal2(name,jobId){
 function initJobTimers(jobList){const now=Date.now();return jobList.map(j=>{if(!j.postedAt)return{...j,postedAt:now,expiresAt:now+86400000};return j;});}
 function pruneExpiredJobs(jobList){const now=Date.now();return jobList.filter(j=>!j.expiresAt||j.expiresAt>now);}
 function formatCountdown(expiresAt){const ms=expiresAt-Date.now();if(ms<=0)return"Expired";const h=Math.floor(ms/3600000);const m=Math.floor((ms%3600000)/60000);const s=Math.floor((ms%60000)/1000);if(h>0)return h+"h "+m+"m";if(m>0)return m+"m "+s+"s";return s+"s";}
-function timerColor(expiresAt){const ms=expiresAt-Date.now();if(ms<=0)return"#ef4444";if(ms<3600000)return"#ef4444";if(ms<10800000)return"#f97316";return"#22c55e";}
+function timerColor(expiresAt){if(!expiresAt)return"#22c55e";const ms=expiresAt-Date.now();if(ms<=0)return"#ef4444";if(ms<3600000)return"#ef4444";if(ms<10800000)return"#f97316";return"#22c55e";}
 function timerBadge(job,onExtend){
   if(!job||!job.expiresAt)return el("span");
   const ms=job.expiresAt-Date.now();const expired=ms<=0;
