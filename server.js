@@ -1915,9 +1915,18 @@ function handleModCommand(msg, ws, meta) {
       const u = (db.users||[]).find(u => u.name === target);
       if (u) {
         u.noPostLimit = !u.noPostLimit;
+        // If limit was just removed, clear expiresAt on all their active jobs
+        if (u.noPostLimit) {
+          (db.jobs || []).forEach(j => { if (j.postedBy === target) j.expiresAt = null; });
+        } else {
+          // Limit restored — give active jobs a fresh 24h window from now
+          const now = Date.now();
+          (db.jobs || []).forEach(j => { if (j.postedBy === target) j.expiresAt = now + 24*60*60*1000; });
+        }
         dirty = true;
         broadcast({ type: 'update', key: 'users', val: db.users });
-        // Tell the user live so their next post uses the new setting
+        broadcast({ type: 'update', key: 'jobs', val: db.jobs });
+        // Tell the user live so their client refreshes immediately
         clients.forEach(c => {
           const m = clientMeta.get(c);
           if (m && m.user === target) c.send(JSON.stringify({ type: 'init', user: u, jobs: db.jobs, ratings: db.ratings }));

@@ -2780,6 +2780,7 @@ function wsConnect(){
                   if(su.adminMessages && su.adminMessages.length>(U.adminMessages||[]).length){
                     U={...U, adminMessages:su.adminMessages}; changed=true; _newAdminMsg=true;
                   }
+                  if(su.noPostLimit !== U.noPostLimit){ U={...U, noPostLimit:su.noPostLimit}; changed=true; }
                   if(changed){ save('currentUser',U); rerender(); }
                 }
               }
