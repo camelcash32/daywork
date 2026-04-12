@@ -775,6 +775,15 @@ if(url === '/.well-known/assetlinks.json') {
     return;
   }
 
+  // GET /public-stats → returns basic counts for landing page
+  if (url === '/public-stats' && req.method === 'GET') {
+    const workers = (db.users||[]).filter(u => u.profileComplete === true).length;
+    const jobs = (db.jobs||[]).filter(j => !j.expiresAt || j.expiresAt > Date.now()).length;
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify({ workers, jobs }));
+    return;
+  }
+
   // GET /public-jobs → returns active non-expired jobs for landing page (no private data)
   if (url === '/public-jobs' && req.method === 'GET') {
     const now = Date.now();
@@ -794,7 +803,8 @@ if(url === '/.well-known/assetlinks.json') {
         slots: j.slots,
         filled: j.filled||0,
         urgent: j.urgent||false,
-        postedAt: j.postedAt||j.id
+        postedAt: j.postedAt||j.id,
+        expiresAt: j.expiresAt||null
       }));
     res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
     res.end(JSON.stringify(publicJobs));
