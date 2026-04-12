@@ -701,7 +701,7 @@ function renderAuth(accentColor, role, onLogin){
         const users=load("users",MOCK_USERS);
         const bio=bioIn.value.trim();
         const skills=skillsIn.value.split(",").map(s=>s.trim()).filter(Boolean);
-        const completed={...pendingUser,fullName,zip,gender,age,profileComplete:true,name:fullName,bio,skills};
+        const completed={...pendingUser,fullName,zip,gender,age,name:fullName,bio,skills};
         const updated=users.map(u=>u.id===completed.id?completed:u);
         save("users",updated);
         onLogin(completed);
