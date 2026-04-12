@@ -43,11 +43,11 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 @keyframes flashNav{0%,100%{background:var(--bg2)}50%{background:rgba(232,197,71,.25)}}
 .flash-alert{animation:flashNav .6s ease 6}
 @keyframes pulseReview{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.7)}70%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
+.needs-review{animation:pulseReview 1.4s ease infinite!important;background:rgba(245,158,11,.2)!important;color:#f59e0b!important;border-color:rgba(245,158,11,.5)!important}
 @keyframes pendingPulse{0%,100%{border-color:rgba(245,158,11,.35);box-shadow:0 0 0 0 rgba(245,158,11,.5)}50%{border-color:rgba(245,158,11,.9);box-shadow:0 0 0 6px rgba(245,158,11,.08)}}
 .card-needs-action{animation:pendingPulse 1.8s ease-in-out infinite;border-color:rgba(245,158,11,.5)!important}
 @keyframes flashUsr{0%,100%{background:var(--bg2)}50%{background:rgba(245,158,11,.2)}}
 .flash-usr{animation:flashUsr .7s ease 8}
-.needs-review{animation:pulseReview 1.4s ease infinite!important;background:rgba(245,158,11,.2)!important;color:#f59e0b!important;border-color:rgba(245,158,11,.5)!important}
 .main{padding:28px;overflow-y:auto}
 .pg{display:none}.pg.on{display:block}
 .ph{margin-bottom:22px}.ph h2{font-size:24px;font-weight:900;margin-bottom:4px}.ph p{font-size:13px;color:var(--muted)}
@@ -589,14 +589,12 @@ function updBadges(){
   const unreadFb=(db.feedback||[]).filter(f=>!f.read).length;
   const repTotal=pr+unreadFb;
   st('b-rep',repTotal||''); st('b-job',(mod.flaggedJobs||[]).length||''); st('b-err',fErr.length||'');
-  // Count users needing action (name approval or profile pending)
   const pendingUsers=(db.users||[]).filter(u=>{
     const nameNeedsApproval=u.nameApproved===false;
     const isPending=!nameNeedsApproval&&u.profileComplete==='pending';
     return nameNeedsApproval||isPending;
   }).length;
   st('b-usr',pendingUsers||'');
-  // Flash the Users tab if new pending users appeared
   if(pendingUsers>_prevPendingUsers){
     const btn=document.getElementById('n-usr');
     if(btn){btn.classList.remove('flash-usr');void btn.offsetWidth;btn.classList.add('flash-usr');setTimeout(()=>btn.classList.remove('flash-usr'),6000);}
@@ -688,15 +686,9 @@ function renderUsers(){
   const el=document.getElementById('UL'), q=(document.getElementById('UQ').value||'').toLowerCase();
   const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); }); Object.keys(db.ratings||{}).forEach(n=>names.add(n)); (db.users||[]).forEach(u=>{ if(u.name) names.add(u.name); });
   let users=[...names].filter(Boolean); if(q) users=users.filter(u=>u.toLowerCase().includes(q));
-  // Sort: name-approval first, then profile-pending, then rest
   users.sort((a,b)=>{
     const ua=(db.users||[]).find(u=>u.name===a), ub=(db.users||[]).find(u=>u.name===b);
-    const scoreOf=u=>{
-      if(!u) return 0;
-      if(u.nameApproved===false) return 3;
-      if(u.profileComplete==='pending') return 2;
-      return 0;
-    };
+    const scoreOf=u=>{if(!u)return 0;if(u.nameApproved===false)return 3;if(u.profileComplete==='pending')return 2;return 0;};
     return scoreOf(ub)-scoreOf(ua);
   });
   if(!users.length){ el.innerHTML=emp('👥','No users found'); return; }
