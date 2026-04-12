@@ -43,6 +43,10 @@ body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-he
 @keyframes flashNav{0%,100%{background:var(--bg2)}50%{background:rgba(232,197,71,.25)}}
 .flash-alert{animation:flashNav .6s ease 6}
 @keyframes pulseReview{0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.7)}70%{box-shadow:0 0 0 6px rgba(245,158,11,0)}}
+@keyframes pendingPulse{0%,100%{border-color:rgba(245,158,11,.35);box-shadow:0 0 0 0 rgba(245,158,11,.5)}50%{border-color:rgba(245,158,11,.9);box-shadow:0 0 0 6px rgba(245,158,11,.08)}}
+.card-needs-action{animation:pendingPulse 1.8s ease-in-out infinite;border-color:rgba(245,158,11,.5)!important}
+@keyframes flashUsr{0%,100%{background:var(--bg2)}50%{background:rgba(245,158,11,.2)}}
+.flash-usr{animation:flashUsr .7s ease 8}
 .needs-review{animation:pulseReview 1.4s ease infinite!important;background:rgba(245,158,11,.2)!important;color:#f59e0b!important;border-color:rgba(245,158,11,.5)!important}
 .main{padding:28px;overflow-y:auto}
 .pg{display:none}.pg.on{display:block}
@@ -229,7 +233,7 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
       <button class="ni" onclick="go('wrn')" id="n-wrn"><span class="ic">⚠️</span>Warnings</button>
       <div class="nl">CONTENT</div>
       <button class="ni" onclick="go('job')" id="n-job"><span class="ic">📋</span>Jobs<span class="nb yl" id="b-job">0</span></button>
-      <button class="ni" onclick="go('usr')" id="n-usr"><span class="ic">👥</span>Users</button>
+      <button class="ni" onclick="go('usr')" id="n-usr"><span class="ic">👥</span>Users<span class="nb" id="b-usr"></span></button>
       <button class="ni" onclick="go('wf')" id="n-wf"><span class="ic">🔤</span>Word Filter</button>
       <button class="ni" onclick="go('bul')" id="n-bul"><span class="ic">📌</span>Bulletin Board</button>
       <button class="ni" onclick="go('ref')" id="n-ref"><span class="ic">💸</span>Refunds<span class="nb" id="b-ref"></span></button>
@@ -579,11 +583,25 @@ function rStats(){
   st('s-visits', db.visits||0);
   st('s-flg',(mod.flaggedJobs||[]).length); st('s-ban',(mod.bannedUsers||[]).length+(mod.bannedIPs||[]).length);
 }
+let _prevPendingUsers=0;
 function updBadges(){
   const pr=(db.reports||[]).filter(r=>r.status==='pending').length;
   const unreadFb=(db.feedback||[]).filter(f=>!f.read).length;
   const repTotal=pr+unreadFb;
   st('b-rep',repTotal||''); st('b-job',(mod.flaggedJobs||[]).length||''); st('b-err',fErr.length||'');
+  // Count users needing action (name approval or profile pending)
+  const pendingUsers=(db.users||[]).filter(u=>{
+    const nameNeedsApproval=u.nameApproved===false;
+    const isPending=!nameNeedsApproval&&u.profileComplete==='pending';
+    return nameNeedsApproval||isPending;
+  }).length;
+  st('b-usr',pendingUsers||'');
+  // Flash the Users tab if new pending users appeared
+  if(pendingUsers>_prevPendingUsers){
+    const btn=document.getElementById('n-usr');
+    if(btn){btn.classList.remove('flash-usr');void btn.offsetWidth;btn.classList.add('flash-usr');setTimeout(()=>btn.classList.remove('flash-usr'),6000);}
+  }
+  _prevPendingUsers=pendingUsers;
 }
 function flashFeedback(){
   const btn=document.getElementById('n-rep');
@@ -670,6 +688,17 @@ function renderUsers(){
   const el=document.getElementById('UL'), q=(document.getElementById('UQ').value||'').toLowerCase();
   const names=new Set(); (db.jobs||[]).forEach(j=>{ if(j.postedBy)names.add(j.postedBy); (j.applicants||[]).forEach(a=>{if(a.name)names.add(a.name);}); }); Object.keys(db.ratings||{}).forEach(n=>names.add(n)); (db.users||[]).forEach(u=>{ if(u.name) names.add(u.name); });
   let users=[...names].filter(Boolean); if(q) users=users.filter(u=>u.toLowerCase().includes(q));
+  // Sort: name-approval first, then profile-pending, then rest
+  users.sort((a,b)=>{
+    const ua=(db.users||[]).find(u=>u.name===a), ub=(db.users||[]).find(u=>u.name===b);
+    const scoreOf=u=>{
+      if(!u) return 0;
+      if(u.nameApproved===false) return 3;
+      if(u.profileComplete==='pending') return 2;
+      return 0;
+    };
+    return scoreOf(ub)-scoreOf(ua);
+  });
   if(!users.length){ el.innerHTML=emp('👥','No users found'); return; }
   el.innerHTML=''; users.forEach(name=>{
     const banned=(mod.bannedUsers||[]).find(b=>b.name===name), warned=(mod.warnings||{})[name];
@@ -690,7 +719,8 @@ function renderUsers(){
     const profileStatusTag = isPending ? `<span style="font-size:11px;color:#f59e0b;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:4px;padding:2px 7px;margin-left:4px">⏳ PENDING</span>` : isApproved ? `<span style="font-size:11px;color:#22c55e;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:4px;padding:2px 7px;margin-left:4px">✅ VERIFIED</span>` : '';
     const photoTag = userObj&&userObj.photo ? `<img src="${userObj.photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid ${isPending?'#f59e0b':isApproved?'#22c55e':'#2a2a2a'};flex-shrink:0" alt="">` : `<div class="av">${name.charAt(0).toUpperCase()}</div>`;
     const needsReview = nameNeedsApproval || isPending;
-    const reviewBtns = isPending ? `<button class="btn bg" style="font-size:11px;background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="showUserProfile('${name}',this)">👁 Review</button>` : '';
+    if(needsReview) d.classList.add('card-needs-action');
+    const reviewBtns = isPending ? `<button class="btn bg" style="font-size:11px;background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3)" onclick="showUserProfile('${name}',this)">👁 Review</button>` : nameNeedsApproval ? `<button class="btn bg" style="font-size:11px;background:rgba(232,197,71,.15);color:#e8c547;border-color:rgba(232,197,71,.3)" onclick="showUserProfile('${name}',this)">👁 Review Name</button>` : '';
     const profileBtnClass = needsReview ? 'btn needs-review' : 'btn';
     const profileBtnStyle = needsReview ? 'font-size:11px;margin-left:4px' : 'font-size:11px;margin-left:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.3)';
     const noLimit = userObj && userObj.noPostLimit;
