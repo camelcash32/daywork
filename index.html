@@ -38,12 +38,41 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
 .jcard:hover{border-color:#a78bfa;transform:translateY(-2px)}
 .btn-p{background:#a78bfa;color:#fff;border:none}.btn-p:hover{background:#9333ea}
 /* Toggle switch */
-.toggle-wrap{display:flex;align-items:center;gap:10px;background:#111;border:1px solid #222;border-radius:999px;padding:4px}
-.toggle-opt{padding:5px 16px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;border:none;font-family:inherit}
-.toggle-opt.active-poster{background:#e8c547;color:#0f0f0f}
-.toggle-opt.active-seeker{background:#a78bfa;color:#fff}
-.toggle-opt.active-workers{background:#22c55e;color:#0f0f0f}
-.toggle-opt.inactive{background:none;color:#555}
+/* ── Mode chooser cards (first-time / no mode selected) ── */
+.mode-chooser{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;background:#0f0f0f}
+.mode-chooser h2{font-size:26px;font-weight:900;margin-bottom:6px;text-align:center}
+.mode-chooser>p{font-size:14px;color:#555;margin-bottom:36px;text-align:center}
+.mode-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:780px;width:100%}
+.mode-card{background:#141414;border:2px solid #222;border-radius:18px;padding:26px 20px;cursor:pointer;transition:all .2s;text-align:left}
+.mode-card:hover{transform:translateY(-4px)}
+.mode-card.mc-hire:hover{border-color:#e8c547;background:rgba(232,197,71,.06)}
+.mode-card.mc-find:hover{border-color:#a78bfa;background:rgba(167,139,250,.06)}
+.mode-card.mc-avail:hover{border-color:#22c55e;background:rgba(34,197,94,.06)}
+.mc-icon{font-size:34px;margin-bottom:14px;display:block}
+.mc-title{font-size:17px;font-weight:900;margin-bottom:8px}
+.mc-hire .mc-title{color:#e8c547}
+.mc-find .mc-title{color:#a78bfa}
+.mc-avail .mc-title{color:#22c55e}
+.mc-desc{font-size:12px;color:#555;line-height:1.65;margin-bottom:12px}
+.mc-examples{font-size:11px;color:#333;line-height:1.9;padding-top:12px;border-top:1px solid #1e1e1e}
+/* ── Tab bar (replaces pill toggle) ── */
+.tab-bar{display:flex;align-items:stretch;background:#0f0f0f;border-bottom:1px solid #1a1a1a;padding:0 24px;gap:2px;position:sticky;top:56px;z-index:99}
+.tab-item{display:flex;flex-direction:column;justify-content:center;padding:10px 20px;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;min-width:0;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;text-align:left}
+.tab-item:hover{background:rgba(255,255,255,.03)}
+.tab-name{font-size:13px;font-weight:800;display:flex;align-items:center;gap:6px;color:#444}
+.tab-sub{font-size:10px;color:#2a2a2a;margin-top:2px;font-weight:400;white-space:nowrap}
+.tab-item.ti-hire.ton{border-bottom-color:#e8c547}.tab-item.ti-hire.ton .tab-name{color:#e8c547}.tab-item.ti-hire.ton .tab-sub{color:#555}
+.tab-item.ti-find.ton{border-bottom-color:#a78bfa}.tab-item.ti-find.ton .tab-name{color:#a78bfa}.tab-item.ti-find.ton .tab-sub{color:#555}
+.tab-item.ti-avail.ton{border-bottom-color:#22c55e}.tab-item.ti-avail.ton .tab-name{color:#22c55e}.tab-item.ti-avail.ton .tab-sub{color:#555}
+/* ── Hint banner under tab bar ── */
+.mode-hint-bar{display:flex;align-items:center;gap:10px;padding:8px 28px;font-size:12px;color:#666;border-bottom:1px solid #151515}
+.mhb-hire{background:rgba(232,197,71,.04);border-color:rgba(232,197,71,.1)}
+.mhb-find{background:rgba(167,139,250,.04);border-color:rgba(167,139,250,.1)}
+.mhb-avail{background:rgba(34,197,94,.04);border-color:rgba(34,197,94,.1)}
+.mhb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+/* keep old classes for mobile tweaks that reference them */
+.toggle-wrap{display:none}
+.toggle-opt{display:none}
 /* Blink animation for applicants tab */
 @keyframes blink-red{0%,100%{color:#ef4444;background:rgba(239,68,68,.2);box-shadow:0 0 8px #ef4444}50%{color:#fff;background:rgba(239,68,68,.5);box-shadow:0 0 16px #ef4444,0 0 30px #ef4444}}
 .blink-alert{animation:blink-red 0.6s ease-in-out infinite !important;border-radius:8px;padding:6px 14px !important}
@@ -55,6 +84,7 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
 @media (max-width: 640px) {
   /* Header */
   .hdr{padding:0 12px;height:52px}
+  .tab-bar{top:52px}
   .hdr h1{font-size:14px}
 
   /* Main content padding */
@@ -80,7 +110,12 @@ h1{font-size:26px;font-weight:900;letter-spacing:-.02em} h2{font-size:20px;font-
   /* Browse: job list + sidebar → stack */
   div[style*="maxWidth:\"960px\""]{padding:16px 12px!important}
 
-  /* Toggle labels shorter on small screens */
+  /* Tab bar on small screens */
+  .tab-bar{padding:0 8px}
+  .tab-item{padding:9px 10px;min-width:0}
+  .tab-name{font-size:11px}
+  .tab-sub{display:none}
+  .mode-cards{grid-template-columns:1fr}
   .toggle-opt{padding:5px 10px!important;font-size:11px!important}
 
   /* Filter row wraps */
@@ -926,7 +961,7 @@ function syncBar(onImport){
 
 let U=null, tab="post", selJob=null, zipIn2=load("seekerZip",""), catFil="All", searchQ="", viewingProfile=null, radiusMi=load("seekerRadius",25);
 let _newAdminMsg=false;
-let mode=load("userMode","seeker");
+let mode=load("userMode",null);
 let jobs=[]; // populated by server via WebSocket
 function pruneExpired(){return pruneExpiredJobs(jobs||[]);}
 let ratings=load("ratings",INITIAL_RATINGS);
@@ -962,14 +997,60 @@ function renderApp(){
   const myJobs=jobs.filter(j=>j.postedBy===U.name);
   const pend=myJobs.reduce((n,j)=>n+j.applicants.filter(a=>a.status==="pending").length,0);
   const signOut=btn("btn btn-d",{width:"auto",padding:"5px 12px",fontSize:"12px"},()=>{U=null;save("currentUser",null);rerender();},"Sign out");
-  const accentColor=mode==="poster"?"#e8c547":"#a78bfa";
-  const logoEl=ap(el("span",null,{fontSize:"15px",fontWeight:"900",color:accentColor,letterSpacing:"-.02em",cursor:"pointer"}),"⚡ GoDayWork");
+  const accentColor=mode==="poster"?"#e8c547":mode==="workers"?"#22c55e":"#a78bfa";
+  const logoEl=ap(el("span",null,{fontSize:"15px",fontWeight:"900",color:"#e8c547",letterSpacing:"-.02em",cursor:"pointer"}),"⚡ GoDayWork");
   logoEl.onclick=()=>{if(mode==="seeker"){selJob=null;}tab="post";rerender();};
-  // Toggle switch
-  const pOpt=btn("toggle-opt"+(mode==="poster"?" active-poster":" inactive"),{},()=>{mode="poster";save("userMode","poster");tab="post";rerender();},"🏢 Hire Help");
-  const sOpt=btn("toggle-opt"+(mode==="seeker"?" active-seeker":" inactive"),{},()=>{mode="seeker";save("userMode","seeker");rerender();},"🔍 Find Jobs");
-  const wOpt=btn("toggle-opt"+(mode==="workers"?" active-workers":" inactive"),{},()=>{mode="workers";save("userMode","workers");rerender();},"✋ Workers Available");
-  const tog=ap(div("toggle-wrap",{}),pOpt,sOpt,wOpt);
+
+  // ── If no mode chosen yet, show the card chooser fullscreen ──
+  if(!mode){
+    function pickMode(m){mode=m;save("userMode",m);if(m==="poster")tab="post";rerender();}
+    const chooser=div("mode-chooser",{});
+    ap(chooser,
+      ap(el("h2"),"What do you want to do today?"),
+      ap(el("p",null,{fontSize:"14px",color:"#555",marginBottom:"36px",textAlign:"center"}),"Pick one — you can switch anytime.")
+    );
+    const cards=div("mode-cards",{});
+    // Card: I Need Help
+    const cHire=div("mode-card mc-hire",{});
+    ap(cHire,ap(el("span","mc-icon"),"🏠"),ap(el("div","mc-title"),"I Need Help"),
+      ap(el("div","mc-desc"),"Post a job and hire a local worker. You set the pay, they apply, you pick who shows up."),
+      ap(el("div","mc-examples"),"Yard work · Moving · Cleaning\nPainting · Handyman · And more"));
+    cHire.onclick=()=>pickMode("poster");
+    // Card: I Need Work
+    const cFind=div("mode-card mc-find",{});
+    ap(cFind,ap(el("span","mc-icon"),"🔍"),ap(el("div","mc-title"),"I Need Work"),
+      ap(el("div","mc-desc"),"Browse jobs posted in your area. Apply to any job that fits — get paid same day."),
+      ap(el("div","mc-examples"),"Browse open jobs · Apply instantly\nGet hired today · Get paid today"));
+    cFind.onclick=()=>pickMode("seeker");
+    // Card: I'm Available
+    const cAvail=div("mode-card mc-avail",{});
+    ap(cAvail,ap(el("span","mc-icon"),"✋"),ap(el("div","mc-title"),"I'm Available"),
+      ap(el("div","mc-desc"),"Post that you're ready to work. Hirers in your area can find you and send you a job offer directly."),
+      ap(el("div","mc-examples"),"Post your skills · Set your schedule\nHirers come to you · You say yes or no"));
+    cAvail.onclick=()=>pickMode("workers");
+    ap(cards,cHire,cFind,cAvail);
+    ap(chooser,cards);
+    return div(null,{width:"100%",minHeight:"100vh"},chooser);
+  }
+
+  // ── Tab bar (replaces pill toggle) ──
+  function makeTab(cls,label,sub,isOn,onclick2){
+    const t=btn("tab-item "+cls+(isOn?" ton":""),{},onclick2);
+    ap(t,ap(el("span","tab-name"),label),ap(el("span","tab-sub"),sub));
+    return t;
+  }
+  const tabHire=makeTab("ti-hire","🏠 I Need Help","Post a job, hire someone today",mode==="poster",()=>{mode="poster";save("userMode","poster");tab="post";rerender();});
+  const tabFind=makeTab("ti-find","🔍 I Need Work","Browse jobs near you, apply now",mode==="seeker",()=>{mode="seeker";save("userMode","seeker");selJob=null;rerender();});
+  const tabAvail=makeTab("ti-avail","✋ I'm Available","Post your skills, hirers find you",mode==="workers",()=>{mode="workers";save("userMode","workers");rerender();});
+  const tabBar=ap(div("tab-bar",{}),tabHire,tabFind,tabAvail);
+
+  // ── Hint banner ──
+  const hintMap={poster:["mhb-hire","#e8c547","You're in I Need Help mode — post a job and local workers will apply. You pick who shows up."],seeker:["mhb-find","#a78bfa","You're in I Need Work mode — browse jobs near you and apply. Get paid same day."],workers:["mhb-avail","#22c55e","You're in I'm Available mode — post your skills and hirers can send you a job offer directly."]};
+  const [hintCls,hintColor,hintText]=hintMap[mode]||hintMap["seeker"];
+  const hintBar=ap(div("mode-hint-bar "+hintCls,{}),ap(el("span","mhb-dot",{background:hintColor})),ap(el("span",null,{fontSize:"12px",color:"#666"}),hintText));
+
+  // Keep tog variable so rest of code doesn't break (hidden)
+  const tog=div("toggle-wrap",{});
   // Poster-mode nav tabs
   const navPost=btn("nav"+(tab==="post"?" on":""),{},()=>{tab="post";rerender();},"📋 Post Job");
   const navApps=btn("nav"+(tab==="applicants"?" on":"")+(pend>0?" blink-alert":""),{},()=>{tab="applicants";rerender();},"👥 Applicants"+(pend>0?" ("+pend+")":""));
@@ -1075,6 +1156,8 @@ function renderApp(){
       btn(null,{background:"none",border:"1px solid #2a2a2a",borderRadius:"6px",color:"#555",fontFamily:"inherit",fontSize:"11px",cursor:"pointer",padding:"3px 10px"},()=>fileIn.click(),"⬆ Import"),fileIn
     ),
     div("hdr",{},ap(div(null,{display:"flex",alignItems:"center",gap:"8px"}),logoEl,(()=>{const _fb=el("a",null,{display:"inline-flex",alignItems:"center",gap:"6px",color:"#1877f2",fontSize:"12px",fontWeight:"700",textDecoration:"none",border:"1px solid rgba(24,119,242,.3)",borderRadius:"8px",padding:"5px 11px"},{href:"https://www.facebook.com/profile.php?id=61585294792181",target:"_blank"});_fb.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg> Follow us';return _fb;})(),(()=>{const _fq=el("a",null,{display:"inline-flex",alignItems:"center",gap:"5px",color:"#e8c547",fontSize:"12px",fontWeight:"700",textDecoration:"none",border:"1px solid rgba(232,197,71,.3)",borderRadius:"8px",padding:"5px 11px"},{href:"/faq",target:"_blank"});_fq.textContent="❓ FAQ";_fq.removeAttribute('href');_fq.style.cursor='pointer';_fq.onclick=()=>openFaqModal();return _fq;})()),hdrRight),
+    tabBar,
+    hintBar,
     ap(div(null,{display:"flex",alignItems:"flex-start",maxWidth:"1280px",margin:"0 auto"}),
       mainContent,
       ap(div("bulletinSidebar",{width:"280px",flexShrink:"0",padding:"20px 16px 28px 0",position:"sticky",top:"0",alignSelf:"flex-start"}),renderBulletinBoard())
