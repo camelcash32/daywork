@@ -720,12 +720,12 @@ function renderAuth(accentColor, role, onLogin){
         avatarPreview.style.display = "none";
         photoFileBtn.style.border = "1px dashed #22c55e";
         photoFileBtn.style.color = "#22c55e";
-        photoFileBtn.textContent = "🖼 Change File";
+        photoFileBtn.textContent = "🖼 Upload Photo";
         photoCamBtn.textContent = "📷 Retake";
         photoCamBtn.style.border = "1px dashed #22c55e";
         photoCamBtn.style.color = "#22c55e";
       };
-      const photoFileBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 14px",fontFamily:"inherit"},()=>photoUploadInput.click(),"🖼 Choose File");
+      const photoFileBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 14px",fontFamily:"inherit"},()=>photoUploadInput.click(),"🖼 Upload Photo");
       const photoCamBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 14px",fontFamily:"inherit"},()=>openWebcam(setProfilePhoto),"📷 Take Photo");
       photoUploadInput.addEventListener("change", e => {
         const file = e.target.files[0];
@@ -3342,7 +3342,7 @@ function showSettingsDropdown(anchorEl) {
     color:'#888',fontSize:'11px',cursor:'pointer',padding:'4px 10px',
     fontFamily:'inherit'
   });
-  choosePhotoBtn.textContent = U.photo ? '🖼 Change File' : '🖼 Choose File';
+  choosePhotoBtn.textContent = U.photo ? '🖼 Upload Photo' : '🖼 Upload Photo';
   choosePhotoBtn.onclick = () => photoFileInput.click();
 
   const webcamPhotoBtn = el('button',null,{
