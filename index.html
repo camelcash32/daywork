@@ -710,7 +710,7 @@ function renderAuth(accentColor, role, onLogin){
       // Photo upload section
       let profilePhotoB64 = null;
       const photoNotice = div(null,{background:"#1a1200",border:"1px solid #f59e0b44",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",lineHeight:"1.6",color:"#999",textAlign:"center"});
-      photoNotice.innerHTML = '<span style="color:#f59e0b;font-weight:700">📷 Profile photo required for approval</span><br>Upload a clear photo of your face. No sunglasses, hats, or filters. This is how employers will recognize you — it must be a real photo of you.';
+      photoNotice.innerHTML = '<span style="color:#f59e0b;font-weight:700">📷 Why we require a photo</span><br>GoDayWork connects real people for real work. Your photo lets employers know exactly who is showing up — and protects you by making sure hirers are accountable too. No anonymous accounts. No fake profiles. Upload a clear photo of your face — no sunglasses, hats, or filters.';
       const photoUploadInput = el("input",null,{display:"none"},{type:"file",accept:"image/*"});
       const photoImgPreview = el("img",null,{width:"80px",height:"80px",objectFit:"cover",borderRadius:"50%",border:"2px solid #f59e0b",display:"none",margin:"0 auto 8px",cursor:"pointer"});
       const setProfilePhoto = (b64) => {
@@ -2224,6 +2224,34 @@ function renderBrowse(){
   ap(w,catRow);
   ap(w,p2(null,{color:"#444",fontSize:"13px",marginBottom:"16px"},filtered.length+" job"+(filtered.length!==1?"s":"")+" available"));
 
+  // Lock overlay for users without approved photo
+  const isLocked = U && U.profileComplete !== true;
+  if(isLocked){
+    const lockWrap = div(null,{position:"relative",marginTop:"8px"});
+    const fakeGrid = div(null,{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:"14px",filter:"blur(5px)",pointerEvents:"none",userSelect:"none",opacity:"0.5"});
+    // Show 3 placeholder ghost cards
+    for(let i=0;i<3;i++){
+      const ghost=div("jcard",{},
+        div(null,{height:"12px",background:"#2a2a2a",borderRadius:"6px",width:"60%",marginBottom:"10px"}),
+        div(null,{height:"20px",background:"#222",borderRadius:"6px",width:"80%",marginBottom:"8px"}),
+        div(null,{height:"12px",background:"#1a1a1a",borderRadius:"6px",width:"40%",marginBottom:"6px"}),
+        div(null,{height:"12px",background:"#1a1a1a",borderRadius:"6px",width:"55%"})
+      );
+      ap(fakeGrid,ghost);
+    }
+    const lockOverlay = div(null,{position:"absolute",inset:"0",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"rgba(10,10,10,.6)",borderRadius:"14px",zIndex:"2",padding:"24px",textAlign:"center"});
+    const lockIcon = ap(el("div",null,{fontSize:"40px",marginBottom:"12px"}),"🔒");
+    const lockTitle = ap(el("div",null,{fontSize:"18px",fontWeight:"800",marginBottom:"8px",color:"#f0ede8"}),"Unlock Job Listings");
+    const lockMsg = ap(el("div",null,{fontSize:"13px",color:"#888",marginBottom:"18px",lineHeight:"1.6"}),U.profileComplete==='pending'?"Your profile is under review — job listings unlock once approved.":"Upload your profile photo to access all job listings. Takes 30 seconds.");
+    const lockBtn = U.profileComplete==='pending'
+      ? btn(null,{background:"#1a1a1a",border:"1px solid #333",borderRadius:"10px",color:"#f59e0b",fontSize:"13px",fontWeight:"800",cursor:"pointer",padding:"12px 28px",fontFamily:"inherit"},()=>{},"⏳ Pending Approval")
+      : btn(null,{background:"#f59e0b",border:"none",borderRadius:"10px",color:"#000",fontSize:"13px",fontWeight:"800",cursor:"pointer",padding:"12px 28px",fontFamily:"inherit"},()=>{mode="poster";tab="post";checkProfileComplete(()=>{mode="seeker";tab="post";rerender();});},"📷 Upload Photo →");
+    ap(lockOverlay,lockIcon,lockTitle,lockMsg,lockBtn);
+    ap(lockWrap,fakeGrid,lockOverlay);
+    ap(w,lockWrap);
+    return w;
+  }
+
   const grid=div(null,{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:"14px"});
   filtered.forEach(job=>{
     const r=ratings[job.postedBy];
@@ -3312,7 +3340,7 @@ function showSettingsDropdown(anchorEl) {
   } else if(U.profileComplete === 'pending'){
     photoStatus.innerHTML = '<span style="color:#f59e0b">⏳ Under review</span>';
   } else {
-    photoStatus.innerHTML = '<span style="color:#ef4444">⚠ Photo required for profile approval</span>';
+    photoStatus.innerHTML = '<span style="color:#ef4444">⚠ Photo required</span><br><span style="color:#555;font-size:10px">Your photo lets employers know who is showing up. It also protects you — no anonymous accounts allowed.</span>';
   }
 
   // Preview
