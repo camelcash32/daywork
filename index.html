@@ -3233,28 +3233,94 @@ function showSettingsDropdown(anchorEl) {
     editToggleBtn
   ));
 
-  // Profile picture upload
-  const fileInput = el('input',null,{display:'none'},{type:'file',accept:'image/*'});
-  fileInput.addEventListener('change', e => {
+  // Profile verification photo section
+  const photoSection = el('div',null,{padding:'10px 0',borderTop:'1px solid #1a1a1a',marginTop:'4px'});
+  const photoLabel = el('div',null,{fontSize:'11px',color:'#666',marginBottom:'8px',display:'flex',alignItems:'center',gap:'8px'});
+  photoLabel.innerHTML = '📷 <span style="font-weight:600;color:#aaa">Verification Photo</span>';
+
+  // Status indicator
+  const photoStatus = el('div',null,{fontSize:'11px',marginBottom:'8px'});
+  if(U.profileComplete === true){
+    photoStatus.innerHTML = '<span style="color:#22c55e">✅ Verified</span>';
+  } else if(U.profileComplete === 'pending'){
+    photoStatus.innerHTML = '<span style="color:#f59e0b">⏳ Under review</span>';
+  } else {
+    photoStatus.innerHTML = '<span style="color:#ef4444">⚠ Photo required for profile approval</span>';
+  }
+
+  // Preview
+  const photoPreview = el('img',null,{
+    width:'72px',height:'72px',objectFit:'cover',borderRadius:'10px',
+    border:'2px solid #2a2a2a',display: U.photo ? 'block' : 'none',marginBottom:'8px'
+  },{src: U.photo||''});
+
+  let pendingPhotoB64 = null;
+  const photoFileInput = el('input',null,{display:'none'},{type:'file',accept:'image/*'});
+  photoFileInput.addEventListener('change', e => {
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      U = {...U, avatar: ev.target.result};
-      save('currentUser', U);
-      showToast('✅ Profile picture updated!');
-      panel.remove();
-      rerender();
+      pendingPhotoB64 = ev.target.result;
+      photoPreview.src = pendingPhotoB64;
+      photoPreview.style.display = 'block';
+      submitPhotoBtn.style.display = 'inline-block';
+      submitPhotoBtn.textContent = 'Submit for Review';
+      submitPhotoBtn.style.background = '#f59e0b';
+      submitPhotoBtn.style.color = '#000';
     };
     reader.readAsDataURL(file);
   });
-  const picRow = row('📷', 'Profile Picture',
-    btn(null,{background:'none',border:'1px solid #2a2a2a',borderRadius:'7px',
-      color:'#888',fontSize:'11px',cursor:'pointer',padding:'4px 10px',fontFamily:'inherit',width:'auto'},
-      ()=>fileInput.click(), 'Upload')
-  );
-  ap(picRow, fileInput);
-  ap(acct, picRow);
+
+  const choosePhotoBtn = el('button',null,{
+    background:'none',border:'1px solid #2a2a2a',borderRadius:'7px',
+    color:'#888',fontSize:'11px',cursor:'pointer',padding:'4px 10px',
+    fontFamily:'inherit',marginRight:'6px'
+  });
+  choosePhotoBtn.textContent = U.photo ? 'Change Photo' : 'Choose Photo';
+  choosePhotoBtn.onclick = () => photoFileInput.click();
+
+  const submitPhotoBtn = el('button',null,{
+    background:'#f59e0b',border:'none',borderRadius:'7px',
+    color:'#000',fontSize:'11px',cursor:'pointer',padding:'4px 10px',
+    fontFamily:'inherit',fontWeight:'700',
+    display: pendingPhotoB64 ? 'inline-block' : 'none'
+  });
+  submitPhotoBtn.textContent = 'Submit for Review';
+  submitPhotoBtn.onclick = () => {
+    if(!pendingPhotoB64) return;
+    if(!U.phone){
+      panel.remove();
+      checkProfileComplete();
+      return;
+    }
+    const allUsers = load('users',[]);
+    const updated = allUsers.map(u => u.id===U.id
+      ? {...u, photo: pendingPhotoB64, profileComplete:'pending'}
+      : u
+    );
+    save('users', updated);
+    U = {...U, photo: pendingPhotoB64, profileComplete:'pending'};
+    save('currentUser', U);
+    fetch('/register-user', {method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id:U.id, name:U.name, phone:U.phone, photo:pendingPhotoB64,
+        fullName:U.fullName, zip:U.zip, gender:U.gender, age:U.age, bio:U.bio, skills:U.skills})
+    }).catch(()=>{});
+    wsSend('users', updated);
+    showToast('✅ Photo submitted! Pending admin review.');
+    panel.remove();
+    rerender();
+  };
+
+  ap(photoSection, photoLabel);
+  ap(photoSection, photoStatus);
+  ap(photoSection, photoPreview);
+  const photoBtns = el('div',null,{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'6px'});
+  ap(photoBtns, choosePhotoBtn);
+  ap(photoBtns, photoFileInput);
+  ap(photoBtns, submitPhotoBtn);
+  ap(photoSection, photoBtns);
+  ap(acct, photoSection);
 
   // Helper to sync user changes to server
   const syncUser = (updated) => {
