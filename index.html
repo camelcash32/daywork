@@ -1481,7 +1481,7 @@ function checkProfileComplete(callback){
     if(!photoB64){errEl.textContent='Please upload a profile photo.';return;}
     errEl.textContent='';
     const usrs=load('users',[]);
-    const updatedUsers=usrs.map(u=>u.id===U.id?{...u,fullName,phone,photo:photoB64,profileComplete:true}:u);
+    const updatedUsers=usrs.map(u=>u.id===U.id?{...u,fullName,phone,photo:photoB64,profileComplete:'pending'}:u);
     save('users',updatedUsers);
     U={...U,fullName,phone,photo:photoB64,profileComplete:'pending'};
     save('currentUser',U);
