@@ -236,6 +236,7 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
       <button class="ni" onclick="go('usr')" id="n-usr"><span class="ic">👥</span>Users<span class="nb" id="b-usr"></span></button>
       <button class="ni" onclick="go('wf')" id="n-wf"><span class="ic">🔤</span>Word Filter</button>
       <button class="ni" onclick="go('bul')" id="n-bul"><span class="ic">📌</span>Bulletin Board</button>
+      <button class="ni" onclick="go('bcast')" id="n-bcast"><span class="ic">📢</span>Broadcast Msg</button>
       <button class="ni" onclick="go('ref')" id="n-ref"><span class="ic">💸</span>Refunds<span class="nb" id="b-ref"></span></button>
       <button class="ni" onclick="go('video')" id="n-video"><span class="ic">🎬</span>Promo Video</button>
       <div class="nl">SYSTEM</div>
@@ -428,6 +429,38 @@ lbl{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.08em;displ
         <div id="EL"></div>
       </div>
 
+      <div class="pg" id="p-bcast">
+        <div class="ph"><h2>Broadcast Message</h2><p>Send a message to all users at once — they'll see it in their inbox when they log in</p></div>
+        <div class="card">
+          <lbl>TARGET AUDIENCE</lbl>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:#aaa">
+              <input type="radio" name="bcast-target" value="all" checked onchange="updateBcastPreview()"> Everyone
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:#aaa">
+              <input type="radio" name="bcast-target" value="approved" onchange="updateBcastPreview()"> Approved only
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:#aaa">
+              <input type="radio" name="bcast-target" value="pending" onchange="updateBcastPreview()"> Pending (no photo yet)
+            </label>
+          </div>
+          <lbl>MESSAGE</lbl>
+          <textarea class="inp" id="BCAST-MSG" placeholder="Type your message to all users…" style="width:100%;min-height:100px;resize:vertical;margin-bottom:10px;font-family:inherit;font-size:13px"></textarea>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <button class="btn by" onclick="sendBroadcast()" style="flex:none">📢 Send to All</button>
+            <span id="BCAST-PREVIEW" style="font-size:12px;color:#666"></span>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <lbl>QUICK TEMPLATES</lbl>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+            <button class="btn-outline" onclick="bcastTemplate('photo')" style="text-align:left;padding:10px 14px;font-size:12px;color:#aaa;background:#111;border:1px solid #222;border-radius:8px;cursor:pointer;font-family:inherit">📷 Photo reminder — "A profile photo is required to get approved. Go to Account Settings and upload a clear photo of your face."</button>
+            <button class="btn-outline" onclick="bcastTemplate('welcome')" style="text-align:left;padding:10px 14px;font-size:12px;color:#aaa;background:#111;border:1px solid #222;border-radius:8px;cursor:pointer;font-family:inherit">👋 Welcome message — "Welcome to GoDayWork! Browse jobs, post openings, and connect with workers near you."</button>
+            <button class="btn-outline" onclick="bcastTemplate('update')" style="text-align:left;padding:10px 14px;font-size:12px;color:#aaa;background:#111;border:1px solid #222;border-radius:8px;cursor:pointer;font-family:inherit">🔔 Site update — "We've made improvements to the platform. Check out what's new and keep connecting with opportunities near you!"</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -569,6 +602,7 @@ function go(pg){
   if(pg==='usr') renderUsers();
   if(pg==='bul') fetch('/bulletin').then(r=>r.json()).then(posts=>renderBulletin(posts)).catch(()=>{});
   if(pg==='ref') loadRefunds();
+  if(pg==='bcast') updateBcastPreview();
 }
 
 function rAll(){ rStats(); renderReports(); renderFeedback(); renderBans(); renderJobs(); renderUsers(); renderWordFilter(); renderWarns(); renderVisits(); renderFaq(); updBadges(); updSw(); }
@@ -658,6 +692,41 @@ function renderBans(){
 }
 
 function sendWarn(){ const n=document.getElementById('WN').value.trim(), m=document.getElementById('WM').value.trim(); if(!n||!m)return; modCmd('warnUser',n,{reason:m}); document.getElementById('WN').value=''; document.getElementById('WM').value=''; toast('⚠️ Warning sent to '+n,''); }
+
+function updateBcastPreview(){
+  const target=document.querySelector('input[name="bcast-target"]:checked')?.value||'all';
+  const users=db.users||[];
+  let count=0;
+  if(target==='all') count=users.length;
+  else if(target==='approved') count=users.filter(u=>u.profileComplete===true).length;
+  else if(target==='pending') count=users.filter(u=>!u.profileComplete||u.profileComplete==='pending').length;
+  const el=document.getElementById('BCAST-PREVIEW');
+  if(el) el.textContent=`Will reach ${count} user${count!==1?'s':''}`;
+}
+function bcastTemplate(t){
+  const templates={
+    photo:'Hi! A profile photo is now required to get approved on GoDayWork. Please go to Account Settings and upload a clear photo of your face — no sunglasses, hats, or filters. Once submitted, we\'ll review and approve your profile.',
+    welcome:'Welcome to GoDayWork! We\'re glad you\'re here. Browse day jobs near you, post openings, and connect with reliable workers in your area. If you have any questions, just reply to this message.',
+    update:'We\'ve made some improvements to GoDayWork to make it faster and easier to use. Thanks for being part of the community — keep connecting with opportunities near you!'
+  };
+  const el=document.getElementById('BCAST-MSG');
+  if(el&&templates[t]){ el.value=templates[t]; el.focus(); }
+}
+function sendBroadcast(){
+  const msg=(document.getElementById('BCAST-MSG')||{}).value||'';
+  const target=document.querySelector('input[name="bcast-target"]:checked')?.value||'all';
+  if(!msg.trim()){toast('Please type a message first.','r');return;}
+  const users=db.users||[];
+  let recipients=[];
+  if(target==='all') recipients=users.map(u=>u.name).filter(Boolean);
+  else if(target==='approved') recipients=users.filter(u=>u.profileComplete===true).map(u=>u.name).filter(Boolean);
+  else if(target==='pending') recipients=users.filter(u=>!u.profileComplete||u.profileComplete==='pending').map(u=>u.name).filter(Boolean);
+  if(!recipients.length){toast('No users match that filter.','r');return;}
+  if(!confirm(`Send this message to ${recipients.length} user${recipients.length!==1?'s':''}?`))return;
+  modCmd('broadcastMessage','',{message:msg.trim(),recipients});
+  document.getElementById('BCAST-MSG').value='';
+  toast(`📢 Broadcast sent to ${recipients.length} user${recipients.length!==1?'s':''}!`,'');
+}
 function renderWarns(){
   const el=document.getElementById('WL'), w=mod.warnings||{};
   const entries=Object.entries(w).filter(([,v])=>v&&v.length);

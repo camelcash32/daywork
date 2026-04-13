@@ -801,6 +801,15 @@ if(url === '/.well-known/assetlinks.json') {
     return;
   }
 
+  // GET /public-stats → returns verified worker count and active job count for landing page
+  if (url === '/public-stats' && req.method === 'GET') {
+    const workers = (db.users||[]).filter(u => u.profileComplete === true).length;
+    const jobs = (db.jobs||[]).filter(j => !j.expiresAt || j.expiresAt > Date.now()).length;
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify({ workers, jobs }));
+    return;
+  }
+
   // GET /faq-data → returns FAQ entries for faq.html
   if (url === '/faq-data' && req.method === 'GET') {
     res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
@@ -1832,6 +1841,30 @@ function handleModCommand(msg, ws, meta) {
       });
       modLog('sendAdminMessage', `Messaged "${target}": ${msgText.slice(0,60)}`, by);
       ws.send(JSON.stringify({ type:'toast', message: delivered ? '✅ Message delivered — user is online.' : '📨 Message saved — user will see it when they log in.' }));
+      break;
+    }
+
+    case 'broadcastMessage': {
+      const msgText = msg.message || '';
+      const recipients = Array.isArray(msg.recipients) ? msg.recipients : [];
+      if (!msgText || !recipients.length) break;
+      const date = new Date().toLocaleDateString();
+      let liveCount = 0;
+      recipients.forEach(name => {
+        const u = (db.users||[]).find(u => u.name === name);
+        if (u) {
+          if (!u.adminMessages) u.adminMessages = [];
+          u.adminMessages.push({ text: msgText, date, read: false });
+          dirty = true;
+        }
+        // Deliver live if online
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === name) { c.send(JSON.stringify({ type: 'adminMessage', message: msgText })); liveCount++; }
+        });
+      });
+      modLog('broadcastMessage', `Broadcast to ${recipients.length} users: ${msgText.slice(0,80)}`, by);
+      ws.send(JSON.stringify({ type:'toast', message: `📢 Sent to ${recipients.length} users (${liveCount} online now).` }));
       break;
     }
 

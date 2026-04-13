@@ -674,8 +674,32 @@ function renderAuth(accentColor, role, onLogin){
       const avatarPreview=div(null,{width:"64px",height:"64px",borderRadius:"50%",
         background:"linear-gradient(135deg,#e8c547,#a78bfa)",
         display:"flex",alignItems:"center",justifyContent:"center",
-        fontWeight:"900",fontSize:"28px",color:"#0f0f0f",margin:"0 auto 16px"});
+        fontWeight:"900",fontSize:"28px",color:"#0f0f0f",margin:"0 auto 10px"});
       ap(avatarPreview,(pendingUser.fullName||pendingUser.name||"?").charAt(0).toUpperCase());
+
+      // Photo upload section
+      let profilePhotoB64 = null;
+      const photoNotice = div(null,{background:"#1a1200",border:"1px solid #f59e0b44",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",lineHeight:"1.6",color:"#999",textAlign:"center"});
+      photoNotice.innerHTML = '<span style="color:#f59e0b;font-weight:700">📷 Profile photo required for approval</span><br>Upload a clear photo of your face. No sunglasses, hats, or filters. This is how employers will recognize you — it must be a real photo of you.';
+      const photoUploadInput = el("input",null,{display:"none"},{type:"file",accept:"image/*"});
+      const photoImgPreview = el("img",null,{width:"80px",height:"80px",objectFit:"cover",borderRadius:"50%",border:"2px solid #f59e0b",display:"none",margin:"0 auto 8px",cursor:"pointer"});
+      const photoUploadBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 18px",fontFamily:"inherit",margin:"0 auto 14px",display:"block"},()=>photoUploadInput.click(),"📷 Choose Photo");
+      photoUploadInput.addEventListener("change", e => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+          profilePhotoB64 = ev.target.result;
+          photoImgPreview.src = profilePhotoB64;
+          photoImgPreview.style.display = "block";
+          avatarPreview.style.display = "none";
+          photoUploadBtn.textContent = "📷 Change Photo";
+          photoUploadBtn.style.border = "1px dashed #22c55e";
+          photoUploadBtn.style.color = "#22c55e";
+        };
+        reader.readAsDataURL(file);
+      });
+
       const fnIn=inp("text","Your full name",pendingUser.fullName||pendingUser.name||"");
       const zipIn=inp("text","ZIP code","");
       const gSel=el("select",null,{width:"100%",background:"#1a1a1a",border:"1px solid #2a2a2a",
@@ -701,9 +725,15 @@ function renderAuth(accentColor, role, onLogin){
         const users=load("users",MOCK_USERS);
         const bio=bioIn.value.trim();
         const skills=skillsIn.value.split(",").map(s=>s.trim()).filter(Boolean);
-        const completed={...pendingUser,fullName,zip,gender,age,name:fullName,bio,skills};
+        const completed={...pendingUser,fullName,zip,gender,age,name:fullName,bio,skills,
+          ...(profilePhotoB64 ? {photo:profilePhotoB64,profileComplete:'pending'} : {})};
         const updated=users.map(u=>u.id===completed.id?completed:u);
         save("users",updated);
+        if(profilePhotoB64){
+          fetch(location.protocol+"//"+location.host+"/register-user",{method:"POST",headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({id:completed.id,name:completed.name,phone:completed.phone||"",photo:profilePhotoB64,
+              fullName,zip,gender,age,bio,skills})}).catch(()=>{});
+        }
         onLogin(completed);
         if(_ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:"identify",user:fullName}));
         // Sync users to server so email notifications work
@@ -715,7 +745,7 @@ function renderAuth(accentColor, role, onLogin){
         outline:"none",resize:"vertical",minHeight:"70px",boxSizing:"border-box"});
       bioIn.placeholder="Tell people about yourself — skills, experience, what you're good at…";
       const skillsIn=inp("text","e.g. Moving, Yard work, Painting, Cleaning","");
-      ap(card3, avatarPreview,
+      ap(card3, avatarPreview, photoImgPreview, photoNotice, photoUploadBtn, photoUploadInput,
         ap(div(null,{marginBottom:"10px"}),lbl("FULL NAME *"),fnIn),
         ap(div(null,{marginBottom:"10px"}),lbl("ZIP CODE *"),zipIn),
         ap(div(null,{marginBottom:"10px"}),lbl("GENDER *"),gSel),
