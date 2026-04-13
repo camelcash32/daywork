@@ -269,6 +269,36 @@ function debounceSearch(){
   _searchTimer=setTimeout(()=>rerender(),300);
 }
 function showToast(msg){document.querySelectorAll(".toast").forEach(t=>t.remove());const t=ap(el("div","toast",{})," "+msg);document.body.appendChild(t);setTimeout(()=>t.remove(),3500);}
+
+function openWebcam(onCapture){
+  let stream=null;
+  const overlay=div(null,{position:"fixed",inset:"0",background:"rgba(0,0,0,.85)",zIndex:"9999",display:"flex",alignItems:"center",justifyContent:"center"});
+  const modal=div(null,{background:"#131313",border:"1px solid #222",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"380px",textAlign:"center"});
+  const title=ap(el("div",null,{fontSize:"16px",fontWeight:"800",marginBottom:"14px"}),"📷 Take a Photo");
+  const video=el("video",null,{width:"100%",borderRadius:"12px",background:"#000",marginBottom:"12px"},{autoplay:true,playsinline:true,muted:true});
+  const canvas=el("canvas",null,{display:"none"});
+  const snapBtn=btn(null,{background:"#f59e0b",border:"none",borderRadius:"10px",color:"#000",fontSize:"14px",fontWeight:"800",cursor:"pointer",padding:"12px 28px",fontFamily:"inherit",marginRight:"10px"},()=>{
+    canvas.width=video.videoWidth||640;
+    canvas.height=video.videoHeight||480;
+    canvas.getContext("2d").drawImage(video,0,0);
+    const b64=canvas.toDataURL("image/jpeg",0.85);
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    overlay.remove();
+    onCapture(b64);
+  },"📸 Snap");
+  const cancelBtn=btn(null,{background:"none",border:"1px solid #333",borderRadius:"10px",color:"#888",fontSize:"14px",cursor:"pointer",padding:"12px 20px",fontFamily:"inherit"},()=>{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    overlay.remove();
+  },"Cancel");
+  const btnRow=div(null,{display:"flex",justifyContent:"center",marginTop:"4px"});
+  ap(btnRow,snapBtn,cancelBtn);
+  ap(modal,title,video,canvas,btnRow);
+  ap(overlay,modal);
+  document.body.appendChild(overlay);
+  navigator.mediaDevices.getUserMedia({video:{facingMode:"user"},audio:false})
+    .then(s=>{ stream=s; video.srcObject=s; })
+    .catch(()=>{ overlay.remove(); showToast("❌ Camera not available. Please use file upload instead."); });
+}
 function stripePayWorker(job,workerName){
   // Check if worker has payout account set up
   const allUsers = (() => { try { return JSON.parse(_lsGet('dw_users')||'[]'); } catch(e) { return []; } })();
@@ -683,20 +713,25 @@ function renderAuth(accentColor, role, onLogin){
       photoNotice.innerHTML = '<span style="color:#f59e0b;font-weight:700">📷 Profile photo required for approval</span><br>Upload a clear photo of your face. No sunglasses, hats, or filters. This is how employers will recognize you — it must be a real photo of you.';
       const photoUploadInput = el("input",null,{display:"none"},{type:"file",accept:"image/*"});
       const photoImgPreview = el("img",null,{width:"80px",height:"80px",objectFit:"cover",borderRadius:"50%",border:"2px solid #f59e0b",display:"none",margin:"0 auto 8px",cursor:"pointer"});
-      const photoUploadBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 18px",fontFamily:"inherit",margin:"0 auto 14px",display:"block"},()=>photoUploadInput.click(),"📷 Choose Photo");
+      const setProfilePhoto = (b64) => {
+        profilePhotoB64 = b64;
+        photoImgPreview.src = b64;
+        photoImgPreview.style.display = "block";
+        avatarPreview.style.display = "none";
+        photoFileBtn.style.border = "1px dashed #22c55e";
+        photoFileBtn.style.color = "#22c55e";
+        photoFileBtn.textContent = "🖼 Change File";
+        photoCamBtn.textContent = "📷 Retake";
+        photoCamBtn.style.border = "1px dashed #22c55e";
+        photoCamBtn.style.color = "#22c55e";
+      };
+      const photoFileBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 14px",fontFamily:"inherit"},()=>photoUploadInput.click(),"🖼 Choose File");
+      const photoCamBtn = btn(null,{background:"none",border:"1px dashed #f59e0b",borderRadius:"10px",color:"#f59e0b",fontSize:"12px",cursor:"pointer",padding:"8px 14px",fontFamily:"inherit"},()=>openWebcam(setProfilePhoto),"📷 Take Photo");
       photoUploadInput.addEventListener("change", e => {
         const file = e.target.files[0];
         if(!file) return;
         const reader = new FileReader();
-        reader.onload = ev => {
-          profilePhotoB64 = ev.target.result;
-          photoImgPreview.src = profilePhotoB64;
-          photoImgPreview.style.display = "block";
-          avatarPreview.style.display = "none";
-          photoUploadBtn.textContent = "📷 Change Photo";
-          photoUploadBtn.style.border = "1px dashed #22c55e";
-          photoUploadBtn.style.color = "#22c55e";
-        };
+        reader.onload = ev => setProfilePhoto(ev.target.result);
         reader.readAsDataURL(file);
       });
 
@@ -745,7 +780,9 @@ function renderAuth(accentColor, role, onLogin){
         outline:"none",resize:"vertical",minHeight:"70px",boxSizing:"border-box"});
       bioIn.placeholder="Tell people about yourself — skills, experience, what you're good at…";
       const skillsIn=inp("text","e.g. Moving, Yard work, Painting, Cleaning","");
-      ap(card3, avatarPreview, photoImgPreview, photoNotice, photoUploadBtn, photoUploadInput,
+      const photoBtnRow2 = div(null,{display:"flex",gap:"8px",justifyContent:"center",marginBottom:"14px"});
+      ap(photoBtnRow2, photoCamBtn, photoFileBtn, photoUploadInput);
+      ap(card3, avatarPreview, photoImgPreview, photoNotice, photoBtnRow2,
         ap(div(null,{marginBottom:"10px"}),lbl("FULL NAME *"),fnIn),
         ap(div(null,{marginBottom:"10px"}),lbl("ZIP CODE *"),zipIn),
         ap(div(null,{marginBottom:"10px"}),lbl("GENDER *"),gSel),
@@ -3286,29 +3323,35 @@ function showSettingsDropdown(anchorEl) {
 
   let pendingPhotoB64 = null;
   const photoFileInput = el('input',null,{display:'none'},{type:'file',accept:'image/*'});
+  const onSettingsPhoto = (b64) => {
+    pendingPhotoB64 = b64;
+    photoPreview.src = b64;
+    photoPreview.style.display = 'block';
+    submitPhotoBtn.style.display = 'inline-block';
+  };
   photoFileInput.addEventListener('change', e => {
     const file = e.target.files[0];
     if(!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
-      pendingPhotoB64 = ev.target.result;
-      photoPreview.src = pendingPhotoB64;
-      photoPreview.style.display = 'block';
-      submitPhotoBtn.style.display = 'inline-block';
-      submitPhotoBtn.textContent = 'Submit for Review';
-      submitPhotoBtn.style.background = '#f59e0b';
-      submitPhotoBtn.style.color = '#000';
-    };
+    reader.onload = ev => onSettingsPhoto(ev.target.result);
     reader.readAsDataURL(file);
   });
 
   const choosePhotoBtn = el('button',null,{
     background:'none',border:'1px solid #2a2a2a',borderRadius:'7px',
     color:'#888',fontSize:'11px',cursor:'pointer',padding:'4px 10px',
-    fontFamily:'inherit',marginRight:'6px'
+    fontFamily:'inherit'
   });
-  choosePhotoBtn.textContent = U.photo ? 'Change Photo' : 'Choose Photo';
+  choosePhotoBtn.textContent = U.photo ? '🖼 Change File' : '🖼 Choose File';
   choosePhotoBtn.onclick = () => photoFileInput.click();
+
+  const webcamPhotoBtn = el('button',null,{
+    background:'none',border:'1px solid #2a2a2a',borderRadius:'7px',
+    color:'#888',fontSize:'11px',cursor:'pointer',padding:'4px 10px',
+    fontFamily:'inherit'
+  });
+  webcamPhotoBtn.textContent = '📷 Take Photo';
+  webcamPhotoBtn.onclick = () => openWebcam(onSettingsPhoto);
 
   const submitPhotoBtn = el('button',null,{
     background:'#f59e0b',border:'none',borderRadius:'7px',
@@ -3346,6 +3389,7 @@ function showSettingsDropdown(anchorEl) {
   ap(photoSection, photoStatus);
   ap(photoSection, photoPreview);
   const photoBtns = el('div',null,{display:'flex',alignItems:'center',flexWrap:'wrap',gap:'6px'});
+  ap(photoBtns, webcamPhotoBtn);
   ap(photoBtns, choosePhotoBtn);
   ap(photoBtns, photoFileInput);
   ap(photoBtns, submitPhotoBtn);
