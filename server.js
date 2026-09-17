@@ -62,6 +62,38 @@ function saveDB()  {
 }
 function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2)); } catch(e){ console.error('[SAVE] FAILED to write mod.json:', e.message); } }
 
+// ── AUTO-APPROVE ────────────────────────────────────────────────
+// Instantly approves a profile the moment it's submitted, instead of
+// leaving it in 'pending' for an admin to manually verify.
+function autoApproveProfile(u){
+  if(!u) return false;
+  let changed = false;
+  if(u.profileComplete === 'pending' || u.profileComplete === false){
+    u.profileComplete = true;
+    changed = true;
+  }
+  if(u.name){
+    if(u.nameApproved !== true){ u.nameApproved = true; changed = true; }
+  }
+  if(u.photo){
+    if(u.photoApproved !== true){ u.photoApproved = true; changed = true; }
+  }
+  if(u.phone){
+    if(u.phoneApproved !== true){ u.phoneApproved = true; changed = true; }
+  }
+  return changed;
+}
+// Tell the user's live connection (if any) their profile is approved.
+function notifyAutoApproved(target){
+  clients.forEach(c => {
+    const m = clientMeta.get(c);
+    if(m && m.user === target){
+      c.send(JSON.stringify({ type:'profileApproved' }));
+      c.send(JSON.stringify({ type:'nameApproved' }));
+    }
+  });
+}
+
 let db  = loadDB();
 let mod = loadMod();
 
@@ -1296,10 +1328,13 @@ if(url === '/.well-known/assetlinks.json') {
         const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
         if (idx >= 0) {
           db.users[idx] = { ...db.users[idx], ...user };
+          if(autoApproveProfile(db.users[idx])) notifyAutoApproved(db.users[idx].name);
         } else {
           db.users.push(user);
+          if(autoApproveProfile(user)) notifyAutoApproved(user.name);
         }
         dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         res.end(JSON.stringify({ ok: true }));
       } catch(e) {
@@ -1329,6 +1364,7 @@ if(url === '/.well-known/assetlinks.json') {
         const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
         if (idx < 0) {
           db.users.push(user);
+          if(autoApproveProfile(user)) notifyAutoApproved(user.name);
           dirty = true;
         } else {
           // Merge profile fields when user resubmits
@@ -1344,8 +1380,10 @@ if(url === '/.well-known/assetlinks.json') {
           });
           // Clear revokeReason when they resubmit pending profile
           if(user.profileComplete === 'pending' && existing.revokeReason){ existing.revokeReason = null; changed=true; }
+          if(autoApproveProfile(existing)){ changed = true; notifyAutoApproved(existing.name); }
           if(changed) dirty = true;
         }
+        broadcast({ type:'update', key:'users', val:db.users });
         res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
         res.end(JSON.stringify({ ok: true }));
       } catch(e) {
