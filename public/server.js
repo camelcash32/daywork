@@ -1,0 +1,2074 @@
+const http = require('http');
+let notify;
+try { notify = require('./notify'); } catch(e) { notify = null; console.log('[INFO] notify.js not loaded:', e.message); }
+const fs = require('fs');
+const path = require('path');
+
+// ── Config: env vars take priority over config.json ───────────
+function getCfg() {
+  let cfg = {};
+  try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+  return {
+    stripe_secret_key:      process.env.STRIPE_SECRET_KEY      || cfg.stripe_secret_key      || '',
+    stripe_publishable_key: process.env.STRIPE_PUBLISHABLE_KEY || cfg.stripe_publishable_key || '',
+    bulletin_token:         process.env.BULLETIN_TOKEN         || cfg.bulletin_token         || 'dw-bulletin-admin-2024',
+    app_url:              process.env.APP_URL               || cfg.app_url               || 'http://localhost:3000',
+    resend_api_key:       process.env.RESEND_API_KEY       || cfg.resend_api_key       || '',
+    email_from:           process.env.EMAIL_FROM           || cfg.email_from           || 'GoDayWork <noreply@godaywork.com>',
+  };
+}
+const WebSocket = require('ws');
+
+const DATA_DIR  = process.env.DATA_DIR || __dirname;
+const DATA_FILE = path.join(DATA_DIR, 'data.json');
+const MOD_FILE  = path.join(DATA_DIR, 'moderation.json');
+
+// Ensure data directory exists before any reads/writes
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e) {}
+
+// ── Persistence ───────────────────────────────────────────────
+function loadDB() {
+  try { if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE,'utf8')); } catch(e){}
+  return { jobs:[], ratings:{}, chats:{}, reports:[], users:[], bulletin:[], workers:[], payments:[], refundRequests:[], digestQueue:{}, faq:[
+    {id:1,group:'General',question:'Is it free to sign up?',answer:'Yes, signing up on GoDayWork is always free for both hirers and workers. There are no monthly fees or subscriptions.'},
+    {id:2,group:'General',question:'How do I contact support?',answer:'Email us at contact.godaywork@gmail.com and we\'ll get back to you as soon as possible.'},
+    {id:3,group:'General',question:'How long do job posts last?',answer:'Job posts expire after 24 hours. This keeps the platform focused on same-day and next-day gigs and ensures listings stay fresh and relevant.'},
+    {id:4,group:'For Workers',question:'Do I need experience to find work?',answer:'No experience required. Browse jobs near your ZIP code, apply with one tap, and show up ready to work. No resume, no interview.'},
+    {id:5,group:'For Workers',question:'How fast do I get paid?',answer:'Once the hirer marks the job complete, funds are processed through Stripe and typically deposited to your bank within 2 business days for free. An instant payout option is also available for a 1% fee, with funds arriving in approximately 30 minutes to an eligible debit card.'},
+    {id:6,group:'For Workers',question:'How do I know workers are reliable?',answer:'All workers have public ratings and reviews from past hirers. We recommend checking a worker\'s profile and reviews before accepting. GoDayWork does not screen or guarantee workers — it is your responsibility to choose who you hire.'},
+    {id:7,group:'For Hirers',question:'How much does the platform charge?',answer:'GoDayWork charges a 7% platform fee on all job payments, paid by the hirer at checkout. There are no hidden fees. Tips are passed 100% to the worker with no platform fee.'},
+    {id:8,group:'For Hirers',question:'Is my payment secure?',answer:'Yes. All payments are processed through Stripe, one of the most trusted payment platforms in the world. GoDayWork never stores your card information — all payment data is handled securely by Stripe.'},
+    {id:9,group:'For Hirers',question:'What kinds of jobs can I post?',answer:'You can post any legal same-day gig — moving, cleaning, landscaping, yard work, construction, general labor, and more. Jobs must be honest, accurately described, and not involve illegal activity.'}
+  ] };
+}
+function loadMod() {
+  try { if (fs.existsSync(MOD_FILE)) return JSON.parse(fs.readFileSync(MOD_FILE,'utf8')); } catch(e){}
+  return {
+    bannedUsers: [],
+    bannedIPs:   [],
+    flaggedJobs: [],
+    errors:      [],
+    modLog:      [],
+    warnings:    {},      // username -> [{msg,date}]
+    wordFilter:  ['scam','fraud','fake','spam'],
+    autoFlag:    true,
+  };
+}
+function saveDB()  {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(db,null,2));
+    console.log('[SAVE] data.json written — jobs:'+db.jobs.length+' bulletin:'+(db.bulletin||[]).length+' users:'+(db.users||[]).length);
+  } catch(e){ console.error('[SAVE] FAILED to write data.json:', e.message); }
+}
+function saveMod() { try { fs.writeFileSync(MOD_FILE,  JSON.stringify(mod,null,2)); } catch(e){ console.error('[SAVE] FAILED to write mod.json:', e.message); } }
+
+// ── AUTO-APPROVE ────────────────────────────────────────────────
+// Instantly approves a profile the moment it's submitted, instead of
+// leaving it in 'pending' for an admin to manually verify.
+function autoApproveProfile(u){
+  if(!u) return false;
+  let changed = false;
+  if(u.profileComplete === 'pending' || u.profileComplete === false){
+    u.profileComplete = true;
+    changed = true;
+  }
+  if(u.name){
+    if(u.nameApproved !== true){ u.nameApproved = true; changed = true; }
+  }
+  if(u.photo){
+    if(u.photoApproved !== true){ u.photoApproved = true; changed = true; }
+  }
+  if(u.phone){
+    if(u.phoneApproved !== true){ u.phoneApproved = true; changed = true; }
+  }
+  return changed;
+}
+// Tell the user's live connection (if any) their profile is approved.
+function notifyAutoApproved(target){
+  clients.forEach(c => {
+    const m = clientMeta.get(c);
+    if(m && m.user === target){
+      c.send(JSON.stringify({ type:'profileApproved' }));
+      c.send(JSON.stringify({ type:'nameApproved' }));
+    }
+  });
+}
+
+let db  = loadDB();
+let mod = loadMod();
+
+// ── Bot detection ─────────────────────────────────────────────
+const BOT_UA_KEYWORDS = [
+  'bot','crawl','spider','slurp','feed','fetch','scan','check','monitor',
+  'google','bing','yahoo','baidu','yandex','duckduck','facebook','twitter',
+  'linkedin','whatsapp','telegram','slack','discord','pinterest','instagram',
+  'applebot','semrush','ahrefs','moz','majestic','screaming','sitebulb',
+  'pingdom','uptimerobot','statuscake','newrelic','datadog','imperva',
+  'cloudflare','archive.org','wayback','curl','wget','python-requests',
+  'axios','node-fetch','go-http','java/','httpclient','okhttp','libwww',
+  'postman','insomnia','scrapy','mechanize','phantom','headless','puppeteer',
+  'selenium','cypress','playwright','prerender','rendertron','lighthouse'
+];
+// Known data center IP prefixes (AWS, GCP, Azure, Cloudflare, etc.)
+const BOT_IP_PREFIXES = [
+  '43.130.','43.131.','43.132.','43.133.','43.134.','43.135.',  // Tencent/PingAn cloud
+  '147.182.','147.185.',                                          // DigitalOcean
+  '34.','35.','104.196.','104.197.','104.198.',                  // Google Cloud
+  '52.','54.','3.','18.','44.',                                  // AWS
+  '20.','40.','13.','51.','52.175.',                             // Azure
+  '162.158.','172.64.','172.65.','172.66.','172.67.',            // Cloudflare
+  '185.191.','185.220.',                                         // known scan ranges
+  '2003:2880:','2a06:98c0:','2606:4700:'                        // IPv6 Cloudflare/bots
+];
+function isBot(ua, ip){
+  const uaLow = ua.toLowerCase();
+  if(BOT_UA_KEYWORDS.some(k => uaLow.includes(k))) return true;
+  if(!ua || ua.trim()==='') return true; // no user agent = bot
+  if(BOT_IP_PREFIXES.some(p => ip.startsWith(p))) return true;
+  return false;
+}
+
+// ── Seed FAQ if missing from existing database ────────────────
+if(!db.faq||!db.faq.length){
+  db.faq=[
+    {id:1,group:'General',question:'Is it free to sign up?',answer:'Yes, signing up on GoDayWork is always free for both hirers and workers. There are no monthly fees or subscriptions.'},
+    {id:2,group:'General',question:'How do I contact support?',answer:'Email us at contact.godaywork@gmail.com and we\'ll get back to you as soon as possible.'},
+    {id:3,group:'General',question:'How long do job posts last?',answer:'Job posts expire after 24 hours. This keeps the platform focused on same-day and next-day gigs and ensures listings stay fresh and relevant.'},
+    {id:4,group:'For Workers',question:'Do I need experience to find work?',answer:'No experience required. Browse jobs near your ZIP code, apply with one tap, and show up ready to work. No resume, no interview.'},
+    {id:5,group:'For Workers',question:'How fast do I get paid?',answer:'Once the hirer marks the job complete, funds are processed through Stripe and typically deposited to your bank within 2 business days for free. An instant payout option is also available for a 1% fee, with funds arriving in approximately 30 minutes to an eligible debit card.'},
+    {id:6,group:'For Workers',question:'How do I know workers are reliable?',answer:'All workers have public ratings and reviews from past hirers. We recommend checking a worker\'s profile and reviews before accepting. GoDayWork does not screen or guarantee workers — it is your responsibility to choose who you hire.'},
+    {id:7,group:'For Hirers',question:'How much does the platform charge?',answer:'GoDayWork charges a 7% platform fee on all job payments, paid by the hirer at checkout. There are no hidden fees. Tips are passed 100% to the worker with no platform fee.'},
+    {id:8,group:'For Hirers',question:'Is my payment secure?',answer:'Yes. All payments are processed through Stripe, one of the most trusted payment platforms in the world. GoDayWork never stores your card information — all payment data is handled securely by Stripe.'},
+    {id:9,group:'For Hirers',question:'What kinds of jobs can I post?',answer:'You can post any legal same-day gig — moving, cleaning, landscaping, yard work, construction, general labor, and more. Jobs must be honest, accurately described, and not involve illegal activity.'}
+  ];
+  saveDB();
+}
+
+// ── Startup diagnostics ───────────────────────────────────────
+console.log('[STARTUP] DATA_DIR:', DATA_DIR);
+console.log('[STARTUP] DATA_FILE:', DATA_FILE);
+console.log('[STARTUP] data.json exists:', fs.existsSync(DATA_FILE));
+if (fs.existsSync(DATA_FILE)) {
+  const stat = fs.statSync(DATA_FILE);
+  console.log('[STARTUP] data.json size:', stat.size, 'bytes');
+}
+console.log('[STARTUP] Loaded — jobs:', (db.jobs||[]).length, '| bulletin:', (db.bulletin||[]).length, '| users:', (db.users||[]).length);
+const videoPath = require('path').join(DATA_DIR, 'promo-video.mp4');
+console.log('[STARTUP] promo-video.mp4 exists:', fs.existsSync(videoPath));
+let dirty = false;
+
+// Ensure totalSignups is at least the number of known users (fixes zero counter after retroactive deploy)
+if ((db.totalSignups||0) < (db.users||[]).length) {
+  db.totalSignups = (db.users||[]).length;
+  dirty = true;
+}
+
+// Demo job seeding removed — admin controls all job content
+setInterval(()=>{ if(dirty){ saveDB(); dirty=false; } }, 1000);
+
+// Prune expired jobs and worker posts every 15 minutes
+setInterval(()=>{
+  const now = Date.now();
+  const jobsBefore = (db.jobs||[]).length;
+  db.jobs = (db.jobs||[]).filter(j => !j.expiresAt || j.expiresAt > now);
+  const workersBefore = (db.workers||[]).length;
+  db.workers = (db.workers||[]).filter(p => !p.expiresAt || p.expiresAt > now);
+  const removed = (jobsBefore - db.jobs.length) + (workersBefore - (db.workers||[]).length);
+  if(removed > 0){
+    dirty = true;
+    broadcast({type:'update', key:'jobs', val:db.jobs});
+    broadcast({type:'update', key:'workers', val:db.workers});
+    console.log(`[PRUNE] Removed ${jobsBefore - db.jobs.length} expired jobs, ${workersBefore - (db.workers||[]).length} expired worker posts`);
+  }
+}, 15 * 60 * 1000);
+
+// Save data before Railway shuts down the container
+process.on('SIGTERM', () => {
+  console.log('[SHUTDOWN] SIGTERM received — saving data...');
+  if(dirty) saveDB();
+  saveMod();
+  console.log('[SHUTDOWN] Data saved. Exiting.');
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  if(dirty) saveDB();
+  process.exit(0);
+});
+
+// ── Moderation helpers ────────────────────────────────────────
+function isUserBanned(name) {
+  return mod.bannedUsers.some(b => b.name === name);
+}
+function isIPBanned(ip) {
+  return mod.bannedIPs.some(b => b.ip === ip);
+}
+function containsBadWords(text) {
+  if(!text) return false;
+  const lower = text.toLowerCase();
+  return mod.wordFilter.some(w => lower.includes(w));
+}
+function shouldAutoFlag(job) {
+  if(!mod.autoFlag) return false;
+  const text = (job.title||'')+' '+(job.description||'');
+  return containsBadWords(text);
+}
+function modLog(action, detail, by) {
+  const entry = { action, detail, by: by||'system', date: new Date().toISOString() };
+  mod.modLog.unshift(entry);
+  if(mod.modLog.length > 500) mod.modLog = mod.modLog.slice(0,500);
+  console.log(`[MOD] ${action}: ${detail}`);
+  saveMod();
+  return entry;
+}
+function broadcast(msg, except) {
+  const str = JSON.stringify(msg);
+  clients.forEach(c => { if(c !== except && c.readyState === 1) c.send(str); });
+}
+function broadcastMod() {
+  broadcast({ type:'modUpdate', mod: safeModData() });
+}
+function safeModData() {
+  return {
+    bannedUsers: mod.bannedUsers,
+    bannedIPs:   mod.bannedIPs,
+    flaggedJobs: mod.flaggedJobs,
+    warnings:    mod.warnings,
+    wordFilter:  mod.wordFilter,
+    autoFlag:    mod.autoFlag,
+    modLogCount: mod.modLog.length,
+    errorCount:  mod.errors.length,
+  };
+}
+
+// ── JOB NOTIFICATION TO SEEKERS ──────────────────────────────
+async function notifySeekersNewJob(job) {
+  if (!notify) return;
+  const users = db.users || [];
+  const seekers = users.filter(u => u.email && u.emailVerified !== false && u.emailAlerts !== false);
+  if (!seekers.length) return;
+
+  const jobCat = (job.category || '').toLowerCase();
+  const jobTitle = (job.title || '').toLowerCase();
+  const jobDesc = (job.description || '').toLowerCase();
+
+  const instantList = [];
+  const digestList = [];
+
+  for (const user of seekers) {
+    const userCats = (user.notifyCategories || []).map(c => c.toLowerCase());
+    const userCustom = (user.notifyCustomCategories || []).map(c => c.toLowerCase());
+    const hasPrefs = userCats.length > 0 || userCustom.length > 0;
+
+    let matches = !hasPrefs; // no prefs = notify on everything (backwards compat)
+    if (!matches && userCats.some(c => c === jobCat)) matches = true;
+    if (!matches && userCustom.some(k => jobTitle.includes(k) || jobDesc.includes(k))) matches = true;
+    if (!matches) continue;
+
+    if (user.notifyFrequency === 'daily') digestList.push(user);
+    else instantList.push(user);
+  }
+
+  // Instant emails
+  if (instantList.length) {
+    const subject = `⚡ GoDayWork: New ${job.category||'job'} — "${job.title}"`;
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
+        <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
+        <h3 style="margin-bottom:16px">A new ${job.category||'job'} was just posted!</h3>
+        <div style="background:#1a1a1a;border-radius:10px;padding:16px;margin-bottom:16px">
+          <p style="font-weight:700;font-size:18px;margin-bottom:8px">${job.title}</p>
+          <p style="color:#aaa;margin-bottom:4px">📍 ${job.location || job.zip}</p>
+          <p style="color:#aaa;margin-bottom:4px">💰 ${job.pay}</p>
+          <p style="color:#aaa;margin-bottom:4px">📅 ${job.date}</p>
+          ${job.description ? `<p style="color:#888;font-size:13px;margin-top:8px">${job.description.slice(0,150)}${job.description.length>150?'...':''}</p>` : ''}
+        </div>
+        <p style="color:#555;font-size:13px;margin-bottom:16px">Log in to apply before it fills up. Jobs expire in 24 hours!</p>
+        <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">View Job →</a>
+        <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this because you have a GoDayWork account. Update notification settings in the app.</p>
+      </div>`;
+    let sent = 0;
+    for (const user of instantList) {
+      try { await notify.sendEmail(user.email, subject, html); sent++; }
+      catch(e) { console.error(`[NOTIFY] Failed to email ${user.email}:`, e.message); }
+    }
+    console.log(`[NOTIFY] Instant alerts sent to ${sent}/${instantList.length} seekers for "${job.title}"`);
+  }
+
+  // Queue for daily digest
+  if (digestList.length) {
+    if (!db.digestQueue) db.digestQueue = {};
+    for (const user of digestList) {
+      if (!db.digestQueue[user.email]) db.digestQueue[user.email] = [];
+      db.digestQueue[user.email].push({
+        title: job.title, category: job.category,
+        location: job.location || job.zip, pay: job.pay, date: job.date
+      });
+    }
+    saveDB();
+  }
+}
+
+async function sendDailyDigest() {
+  if (!notify || !db.digestQueue) return;
+  const queue = db.digestQueue;
+  db.digestQueue = {};
+  saveDB();
+  for (const [email, jobs] of Object.entries(queue)) {
+    if (!jobs.length) continue;
+    const subject = `⚡ GoDayWork: ${jobs.length} new job${jobs.length>1?'s':''} for you today`;
+    const jobsHtml = jobs.map(j => `
+      <div style="background:#1a1a1a;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+        <p style="font-weight:700;font-size:15px;margin-bottom:4px">${j.title}</p>
+        <p style="color:#aaa;font-size:12px">📍 ${j.location} &nbsp;·&nbsp; 💰 ${j.pay} &nbsp;·&nbsp; 📅 ${j.date}</p>
+      </div>`).join('');
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:500px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
+        <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork Daily Digest</h2>
+        <p style="color:#888;margin-bottom:16px">${jobs.length} new job${jobs.length>1?'s':''} posted in your selected categories:</p>
+        ${jobsHtml}
+        <a href="https://www.godaywork.com" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;margin-top:8px">Browse All Jobs →</a>
+        <p style="color:#333;font-size:11px;margin-top:20px">You're receiving this daily digest from GoDayWork. Update notification settings in the app.</p>
+      </div>`;
+    try { await notify.sendEmail(email, subject, html); console.log(`[DIGEST] Sent to ${email} (${jobs.length} jobs)`); }
+    catch(e) { console.error(`[DIGEST] Failed to email ${email}:`, e.message); }
+  }
+}
+
+// Send daily digest once every 24 hours
+setInterval(sendDailyDigest, 24 * 60 * 60 * 1000);
+
+// ── HTTP server ───────────────────────────────────────────────
+const server = http.createServer((req, res) => {
+  const url = req.url.split('?')[0];
+  const ip  = req.socket.remoteAddress;
+
+  // IP ban check (except admin)
+  if(url !== '/admin' && isIPBanned(ip)) {
+    res.writeHead(403,'Forbidden');
+    res.end('<h1>403 Forbidden</h1><p>Your access has been restricted.</p>');
+    return;
+  }
+
+if(url === '/manifest.json') {
+    try { res.writeHead(200,{'Content-Type':'application/manifest+json'}); res.end(fs.readFileSync(path.join(__dirname,'public','manifest.json'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url === '/sw.js') {
+    try { res.writeHead(200,{'Content-Type':'application/javascript'}); res.end(fs.readFileSync(path.join(__dirname,'public','sw.js'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url === '/offline.html') {
+    try { res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'}); res.end(fs.readFileSync(path.join(__dirname,'public','offline.html'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url === '/screenshot-wide.png') {
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','screenshot-wide.png'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url==='/icon-192.png') {
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','icon-192.png'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  if(url==='/icon-512.png') {
+    try { res.writeHead(200,{'Content-Type':'image/png'}); res.end(fs.readFileSync(path.join(__dirname,'public','icon-512.png'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+
+  if(url === '/app-release-signed.apk') {
+    try {
+      const apkPath = path.join(__dirname, 'app-release-signed.apk');
+      const data = fs.readFileSync(apkPath);
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': 'attachment; filename="GoDayWork.apk"',
+        'Content-Length': data.length
+      });
+      res.end(data);
+    } catch(e) { res.writeHead(404); res.end('APK not found'); }
+    return;
+  }
+
+  if(url === '/ads.txt') {
+    try {
+      res.writeHead(200, {'Content-Type':'text/plain','Access-Control-Allow-Origin':'*'});
+      res.end(require('fs').readFileSync(require('path').join(__dirname,'ads.txt')));
+    } catch(e) { res.writeHead(404); res.end('Not found'); }
+    return;
+  }
+if(url === '/.well-known/assetlinks.json') {
+    try { res.writeHead(200,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(fs.readFileSync(path.join(__dirname,'public','.well-known','assetlinks.json'))); } catch(e){res.writeHead(404);res.end();}
+    return;
+  }
+  
+  if(url === '/privacy' || url === '/privacy.html') {
+    try {
+      res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'privacy.html')));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  if(url === '/terms' || url === '/terms.html') {
+    try {
+      res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'terms.html')));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  if(url === '/landing' || url === '/landing.html') {
+    // Track site visit — only skip clear bots (UA check only, skip IP check to avoid false positives)
+    const visitorIpL = req.headers['cf-connecting-ip'] || (req.headers['x-forwarded-for']||'').split(',')[0].trim() || ip;
+    const ua = req.headers['user-agent']||'';
+    const uaLow = ua.toLowerCase();
+    const isClearBot = !ua || ua.trim()==='' || BOT_UA_KEYWORDS.some(k=>uaLow.includes(k));
+    console.log(`[VISIT] ${visitorIpL} ua="${ua.slice(0,60)}" bot=${isClearBot}`);
+    if(!isClearBot){
+      if(!db.visits) db.visits = 0;
+      db.visits++;
+      if(!db.visitLog) db.visitLog = [];
+      fetch(`http://ip-api.com/json/${visitorIpL}?fields=city,regionName,country,query`)
+        .then(r=>r.json()).then(geo=>{
+          db.visitLog.unshift({time:Date.now(),ip:visitorIpL,city:geo.city||'',region:geo.regionName||'',country:geo.country||''});
+          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+          dirty=true;
+          broadcast({type:'update', key:'visitLog', val:db.visitLog});
+        }).catch(()=>{
+          db.visitLog.unshift({time:Date.now(),ip:visitorIpL,city:'',region:'',country:''});
+          if(db.visitLog.length>100) db.visitLog=db.visitLog.slice(0,100);
+          dirty=true;
+          broadcast({type:'update', key:'visitLog', val:db.visitLog});
+        });
+      dirty = true;
+    }
+    try {
+      res.writeHead(200, {'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'landing.html')));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  if(url === '/admin') {
+    try {
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'admin.html')));
+    } catch(e) { res.writeHead(500); res.end('Admin error: '+e.message); }
+    return;
+  }
+
+  if(url === '/') {
+    // If reset token present, serve the app so it can handle the reset flow
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    if(qs.includes('reset=')) {
+      try {
+        res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+        res.end(fs.readFileSync(path.join(__dirname,'index.html')));
+      } catch(e) { res.writeHead(500); res.end('Error'); }
+      return;
+    }
+    // Track site visit via /landing (redirect target handles logging)
+    res.writeHead(302, {'Location':'/landing'});
+    res.end();
+    return;
+  }
+
+  if(url === '/index.html' || url === '/app') {
+    try {
+      res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+      res.end(fs.readFileSync(path.join(__dirname,'index.html')));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  // ── FEEDBACK ─────────────────────────────────────────────────
+  // POST /feedback  body: {name, email, type, message}
+  if (url === '/feedback' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const { name, email, type, message } = JSON.parse(body);
+        let notify2;
+        try { notify2 = require('./notify'); } catch(e) { notify2 = null; }
+        if (notify2) {
+          const subject = `⚡ GoDayWork Feedback [${type}] from ${name}`;
+          const html = `
+            <div style="font-family:Arial,sans-serif;max-width:500px;background:#0f0f0f;color:#f0ede8;padding:24px;border-radius:12px">
+              <h2 style="color:#e8c547">⚡ GoDayWork — New Feedback</h2>
+              <p><strong>From:</strong> ${name} (${email||'no email'})</p>
+              <p><strong>Type:</strong> ${type}</p>
+              <p><strong>Message:</strong></p>
+              <div style="background:#1a1a1a;padding:14px;border-radius:8px;margin-top:8px">${message}</div>
+            </div>`;
+          await notify2.sendEmail('lcount321@gmail.com', subject, html);
+        }
+        // Save feedback to db
+        if (!db.feedback) db.feedback = [];
+        db.feedback.unshift({ name, email, type, message, date: new Date().toLocaleDateString(), read: false });
+        if (db.feedback.length > 500) db.feedback = db.feedback.slice(0, 500);
+        dirty = true;
+        broadcast({ type: 'update', key: 'feedback', val: db.feedback });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // ── EMAIL VERIFICATION ───────────────────────────────────────
+  // POST /send-verification  body: {email, code}
+  if (url === '/send-verification' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const { email, code, username } = JSON.parse(body);
+        let notify2;
+        try { notify2 = require('./notify'); } catch(e) { notify2 = null; }
+        if (!notify2) {
+          res.writeHead(200, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({ ok: true, dev: true }));
+          console.log('[VERIFY] Dev mode — code for '+email+': '+code);
+          return;
+        }
+        const subject = '⚡ GoDayWork — Your verification code: ' + code;
+        const html = `
+          <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:28px;border-radius:12px">
+            <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
+            <h3 style="margin-bottom:16px">Verify your email</h3>
+            <p style="color:#aaa;margin-bottom:20px">Hi ${username}, enter this code to confirm your account:</p>
+            <div style="background:#1a1a1a;border-radius:10px;padding:20px;text-align:center;margin-bottom:20px">
+              <span style="font-size:36px;font-weight:900;letter-spacing:.2em;color:#e8c547">${code}</span>
+            </div>
+            <p style="color:#555;font-size:13px">This code expires in 10 minutes. If you didn't sign up for GoDayWork, ignore this email.</p>
+          </div>`;
+        const ok = await notify2.sendEmail(email, subject, html);
+        if (!ok) console.log('[VERIFY] Email failed — code for '+email+': '+code);
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true, emailSent: ok, dev: !ok }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // ── CHAT API ─────────────────────────────────────────────
+  // GET /chat?key=chat_1_Demo_Worker  → returns message array
+  if (url === '/chat' && req.method === 'GET') {
+    const qs = require('url').parse(req.url, true).query;
+    const key = qs.key;
+    if (!key || !key.startsWith('chat_')) {
+      res.writeHead(400); res.end('Bad key');
+      return;
+    }
+    const msgs = db.chats[key] || [];
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(msgs));
+    return;
+  }
+
+  // POST /chat  body: {key, msg:{from,text,time}}
+  if (url === '/chat' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { key, msg } = JSON.parse(body);
+        if (!key || !key.startsWith('chat_') || !msg) {
+          res.writeHead(400); res.end('Bad request');
+          return;
+        }
+        if (containsBadWords(msg.text||'')) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Message contains prohibited content.' }));
+          return;
+        }
+        if (!db.chats[key]) db.chats[key] = [];
+        db.chats[key].push(msg);
+        saveDB(); // save immediately
+        // Broadcast to all WS clients
+        const out = JSON.stringify({ type: 'update', key, val: db.chats[key] });
+        clients.forEach(c => { if (c.readyState === 1) c.send(out); });
+        res.writeHead(200, {
+          'Content-Type':'application/json',
+          'Access-Control-Allow-Origin':'*',
+          'Access-Control-Allow-Methods':'GET,POST,OPTIONS',
+          'Access-Control-Allow-Headers':'Content-Type'
+        });
+        res.end(JSON.stringify({ ok: true, msgs: db.chats[key] }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // OPTIONS preflight
+  if (url === '/feedback' && req.method === 'OPTIONS') {
+    res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'POST','Access-Control-Allow-Headers':'Content-Type'});
+    res.end(); return;
+  }
+
+  if (url === '/mark-feedback-read' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { index } = JSON.parse(body);
+        if (db.feedback && db.feedback[index]) { db.feedback[index].read = true; dirty = true; }
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end('Error'); }
+    });
+    return;
+  }
+
+  if (url === '/delete-feedback' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { index } = JSON.parse(body);
+        if (db.feedback && db.feedback[index] !== undefined) { db.feedback.splice(index, 1); dirty = true; }
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) { res.writeHead(500); res.end('Error'); }
+    });
+    return;
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST','Access-Control-Allow-Headers':'Content-Type'});
+    res.end(); return;
+  }
+
+  // ── CONFIRM PAYMENT (called by client on success redirect) ───
+  if (url.startsWith('/confirm-payment') && req.method === 'GET') {
+    const qs = require('url').parse(req.url, true).query;
+    const sessionId = qs.session_id;
+    if (!sessionId) { res.writeHead(400); res.end('Missing session_id'); return; }
+    (async () => { try {
+      const cfg = getCfg();
+      const stripe = require('stripe')(cfg.stripe_secret_key);
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const payment = (db.payments||[]).find(p=>p.sessionId===sessionId);
+      if (payment) {
+        payment.paymentIntentId = session.payment_intent || null;
+        if (payment.type === 'escrow') {
+          // For escrow, funds are authorized but not captured yet
+          payment.status = session.payment_intent ? 'authorized' : payment.status;
+        } else {
+          payment.status = session.payment_status === 'paid' ? 'paid' : payment.status;
+        }
+        saveDB();
+      }
+      res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ ok:true, status: payment?.status||'unknown', type: payment?.type||'payment' }));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ error: e.message }));
+    }})();
+    return;
+  }
+
+  // ── REFUND REQUEST (submitted by user) ───────────────────────
+  if (url === '/refund-request' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { sessionId, requesterName, reason } = JSON.parse(body);
+        if (!sessionId || !reason) { res.writeHead(400); res.end('Missing fields'); return; }
+        const payment = (db.payments||[]).find(p=>p.sessionId===sessionId);
+        if (!payment) { res.writeHead(404); res.end('Payment not found'); return; }
+        if (!db.refundRequests) db.refundRequests = [];
+        const existing = db.refundRequests.find(r=>r.sessionId===sessionId&&r.status==='pending');
+        if (existing) { res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({ok:true,alreadySubmitted:true})); return; }
+        db.refundRequests.unshift({ id:Date.now(), sessionId, requesterName, reason, payment, status:'pending', date:new Date().toISOString() });
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok:true }));
+      } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    });
+    return;
+  }
+
+  // ── GET REFUND REQUESTS (admin) ───────────────────────────────
+  if (url === '/refund-requests' && req.method === 'GET') {
+    let cfg = {};
+    try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+    const token = req.headers['x-admin-token'];
+    if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(db.refundRequests||[]));
+    return;
+  }
+
+  // ── PROCESS REFUND (admin approves) ──────────────────────────
+  if (url === '/process-refund' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+        const token = req.headers['x-admin-token'];
+        if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
+        const { refundId, action } = JSON.parse(body); // action: 'approve' | 'deny'
+        const refReq = (db.refundRequests||[]).find(r=>r.id===refundId);
+        if (!refReq) { res.writeHead(404); res.end('Refund request not found'); return; }
+        if (action === 'deny') {
+          refReq.status = 'denied';
+          saveDB();
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:true, status:'denied' }));
+          return;
+        }
+        // Approve: get payment intent and issue Stripe refund
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        let paymentIntentId = refReq.payment?.paymentIntentId;
+        if (!paymentIntentId) {
+          // Retrieve from Stripe session
+          const session = await stripe.checkout.sessions.retrieve(refReq.sessionId);
+          paymentIntentId = session.payment_intent;
+        }
+        if (!paymentIntentId) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'No payment intent found — payment may not have completed.'})); return; }
+        const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+        refReq.status = 'refunded';
+        refReq.stripeRefundId = refund.id;
+        refReq.refundedAt = new Date().toISOString();
+        // Update payment record
+        const payment = (db.payments||[]).find(p=>p.sessionId===refReq.sessionId);
+        if (payment) { payment.status = 'refunded'; payment.stripeRefundId = refund.id; }
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok:true, status:'refunded', refundId: refund.id }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ── BULLETIN BOARD ──────────────────────────────────────────
+  // GET /bulletin → return all posts
+  if (url === '/bulletin' && req.method === 'GET') {
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(db.bulletin || []));
+    return;
+  }
+
+  // POST /bulletin → add a post (requires admin token)
+  if (url === '/bulletin' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+        const token = req.headers['x-admin-token'];
+        if (cfg.bulletin_token && token !== cfg.bulletin_token) {
+          res.writeHead(401); res.end('Unauthorized'); return;
+        }
+        const { content, fontSize, color, image, pinned } = JSON.parse(body);
+        if (!content) { res.writeHead(400); res.end('Content required'); return; }
+        if (containsBadWords(content)) { res.writeHead(400); res.end('Content contains prohibited words.'); return; }
+        if (!db.bulletin) db.bulletin = [];
+        const post = { id: Date.now(), content, fontSize: fontSize||'14', color: color||'#e8e6f0', image: image||null, pinned: !!pinned, date: new Date().toISOString() };
+        if (pinned) db.bulletin.unshift(post); else db.bulletin.push(post);
+        saveDB();
+        broadcast({ type:'update', key:'bulletin', val:db.bulletin });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok:true, post }));
+      } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    });
+    return;
+  }
+
+  // DELETE /bulletin/:id → remove a post
+  if (url.startsWith('/bulletin/') && req.method === 'DELETE') {
+    try {
+      const cfg = getCfg();
+      const token = req.headers['x-admin-token'];
+      if (cfg.bulletin_token && token !== cfg.bulletin_token) {
+        res.writeHead(401); res.end('Unauthorized'); return;
+      }
+      const postId = parseInt(url.split('/')[2]);
+      db.bulletin = (db.bulletin||[]).filter(p => p.id !== postId);
+      saveDB();
+      broadcast({ type:'update', key:'bulletin', val:db.bulletin });
+      res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ ok:true }));
+    } catch(e) { res.writeHead(500); res.end('Error: '+e.message); }
+    return;
+  }
+
+  // GET /public-jobs → returns active non-expired jobs for landing page (no private data)
+  if (url === '/public-jobs' && req.method === 'GET') {
+    const now = Date.now();
+    const publicJobs = (db.jobs||[])
+      .filter(j => !j.expiresAt || j.expiresAt > now)
+      .slice(0, 10)
+      .map(j => ({
+        id: j.id,
+        title: j.title,
+        category: j.category,
+        pay: j.pay,
+        payAmount: j.payAmount,
+        payType: j.payType,
+        payScope: j.payScope,
+        location: j.location,
+        duration: j.duration,
+        slots: j.slots,
+        filled: j.filled||0,
+        urgent: j.urgent||false,
+        postedAt: j.postedAt||j.id
+      }));
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(publicJobs));
+    return;
+  }
+
+  // GET /public-stats → returns verified worker count and active job count for landing page
+  if (url === '/public-stats' && req.method === 'GET') {
+    const workers = (db.users||[]).filter(u => u.profileComplete === true).length;
+    const jobs = (db.jobs||[]).filter(j => !j.expiresAt || j.expiresAt > Date.now()).length;
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify({ workers, jobs }));
+    return;
+  }
+
+  // GET /faq-data → returns FAQ entries for faq.html
+  if (url === '/faq-data' && req.method === 'GET') {
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify(db.faq||[]));
+    return;
+  }
+
+  // ── STRIPE CONFIG: expose publishable key to frontend ────────
+  if (url === '/stripe-config' && req.method === 'GET') {
+    const cfg = getCfg();
+    res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+    res.end(JSON.stringify({ publishableKey: cfg.stripe_publishable_key || '' }));
+    return;
+  }
+
+  // ── STRIPE CONNECT: create embedded account session ──────────
+  // POST /create-account-session { username } → returns { clientSecret }
+  if (url === '/create-account-session' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured.' })); return;
+        }
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { username } = JSON.parse(body);
+        if (!username) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'Missing username'})); return; }
+
+        if (!db.users) db.users = [];
+        let user = db.users.find(u => u.name === username);
+        if (!user) {
+          user = { name: username, id: 'u_' + Date.now() };
+          db.users.push(user);
+          saveDB();
+        }
+
+        let accountId = user.stripeConnectId;
+        if (!accountId) {
+          const account = await stripe.accounts.create({ type: 'express', country: 'US', capabilities: { transfers: { requested: true } } });
+          accountId = account.id;
+          user.stripeConnectId = accountId;
+          user.stripeConnectStatus = 'pending';
+          saveDB();
+          broadcast({ type:'update', key:'users', val:db.users });
+        }
+
+        const accountSession = await stripe.accountSessions.create({
+          account: accountId,
+          components: { account_onboarding: { enabled: true } },
+        });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ clientSecret: accountSession.client_secret }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ── STRIPE CONNECT: worker onboarding ───────────────────────
+  // POST /connect-onboard  { username } → returns { url } for Stripe Express onboarding
+  if (url === '/connect-onboard' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured.' })); return;
+        }
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { username } = JSON.parse(body);
+        if (!username) { res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}); res.end(JSON.stringify({error:'Missing username'})); return; }
+
+        // Find or create user record for this worker
+        if (!db.users) db.users = [];
+        let user = db.users.find(u => u.name === username);
+        if (!user) {
+          // User exists in client localStorage but not yet synced to server — create minimal record
+          user = { name: username, id: 'u_' + Date.now() };
+          db.users.push(user);
+          saveDB();
+        }
+
+        let accountId = user.stripeConnectId;
+        if (!accountId) {
+          const account = await stripe.accounts.create({ type: 'express', country: 'US', capabilities: { transfers: { requested: true } } });
+          accountId = account.id;
+          user.stripeConnectId = accountId;
+          user.stripeConnectStatus = 'pending';
+          saveDB();
+          broadcast({ type:'update', key:'users', val:db.users });
+        }
+
+        const appUrl = cfg.app_url || 'http://localhost:3000';
+        const accountLink = await stripe.accountLinks.create({
+          account: accountId,
+          refresh_url: appUrl + '/index.html?connect=refresh',
+          return_url:  appUrl + '/index.html?connect=success',
+          type: 'account_onboarding',
+        });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ url: accountLink.url }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /connect-status?username=X → { connected: bool, status }
+  if (url === '/connect-status' && req.method === 'GET') {
+    (async () => { try {
+      const qs = require('url').parse(req.url, true).query;
+      const username = qs.username;
+      if (!username) { res.writeHead(400); res.end('Missing username'); return; }
+      const user = (db.users||[]).find(u => u.name === username);
+      if (!user || !user.stripeConnectId) {
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ connected: false })); return;
+      }
+      const cfg = getCfg();
+      const stripe = require('stripe')(cfg.stripe_secret_key);
+      const account = await stripe.accounts.retrieve(user.stripeConnectId);
+      const connected = account.charges_enabled && account.payouts_enabled;
+      user.stripeConnectStatus = connected ? 'active' : 'pending';
+      saveDB();
+      res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ connected, status: user.stripeConnectStatus, accountId: user.stripeConnectId }));
+    } catch(e) {
+      res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ error: e.message }));
+    }})();
+    return;
+  }
+
+  // ── ESCROW: authorize funds when hirer accepts a worker ─────
+  // POST /create-escrow { jobId, jobTitle, workerName, hirerId, amount }
+  if (url === '/create-escrow' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured.' })); return;
+        }
+        let stripe;
+        try { stripe = require('stripe')(cfg.stripe_secret_key); } catch(e) {
+          res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe package not installed. Run: npm install' })); return;
+        }
+        const { jobId, jobTitle, workerName, hirerId, amount } = JSON.parse(body);
+        const amountCents = Math.round(parseFloat(amount) * 100);
+        if (!amountCents || amountCents < 50) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Amount must be at least $0.50' })); return;
+        }
+        if (amountCents > 20000) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Amount cannot exceed $200' })); return;
+        }
+        const PLATFORM_FEE = 0.07;
+        const feeCents = Math.round(amountCents * PLATFORM_FEE);
+        const appUrl = cfg.app_url || 'http://localhost:3000';
+
+        // Look up worker's Stripe Connect account
+        const workerUser = (db.users||[]).find(u => u.name === workerName);
+        const workerConnectId = workerUser?.stripeConnectId && workerUser?.stripeConnectStatus === 'active'
+          ? workerUser.stripeConnectId : null;
+
+        const sessionParams = {
+          payment_method_types: ['card'],
+          line_items: [
+            { price_data: { currency:'usd', product_data:{ name: jobTitle||'GoDayWork Job', description:'Worker: '+workerName+' — funds held until job is complete' }, unit_amount: amountCents }, quantity:1 },
+            { price_data: { currency:'usd', product_data:{ name: 'GoDayWork Platform Fee (7%)' }, unit_amount: feeCents }, quantity:1 }
+          ],
+          mode: 'payment',
+          payment_intent_data: {
+            capture_method: 'manual',  // hold funds, don't capture yet
+            metadata: { jobId: String(jobId), workerName, hirerId, type:'escrow' }
+          },
+          success_url: appUrl+'/index.html?escrow=success&session_id={CHECKOUT_SESSION_ID}&job_id='+encodeURIComponent(jobId)+'&worker='+encodeURIComponent(workerName),
+          cancel_url:  appUrl+'/index.html?escrow=cancelled',
+          metadata: { jobId: String(jobId), workerName, hirerId, type:'escrow' }
+        };
+        if (workerConnectId) {
+          sessionParams.payment_intent_data.application_fee_amount = feeCents;
+          sessionParams.payment_intent_data.transfer_data = { destination: workerConnectId };
+        }
+        const session = await stripe.checkout.sessions.create(sessionParams);
+
+        if (!db.payments) db.payments = [];
+        db.payments.unshift({
+          sessionId: session.id,
+          type: 'escrow',
+          jobId, jobTitle, workerName, hirerId,
+          amount: amountCents/100,
+          fee: feeCents/100,
+          total: (amountCents+feeCents)/100,
+          status: 'pending_auth',
+          workerPaidDirect: !!workerConnectId,
+          date: new Date().toISOString()
+        });
+        if (db.payments.length > 1000) db.payments = db.payments.slice(0,1000);
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ url: session.url }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /release-payment { jobId, workerName } → capture held funds → pay worker
+  if (url === '/release-payment' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { jobId, workerName } = JSON.parse(body);
+        const payment = (db.payments||[]).find(p => p.type==='escrow' && String(p.jobId)===String(jobId) && p.workerName===workerName && p.status==='authorized');
+        if (!payment) {
+          res.writeHead(404, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'No authorized escrow payment found for this job.' })); return;
+        }
+        let paymentIntentId = payment.paymentIntentId;
+        if (!paymentIntentId) {
+          const session = await stripe.checkout.sessions.retrieve(payment.sessionId);
+          paymentIntentId = session.payment_intent;
+        }
+        if (!paymentIntentId) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Payment intent not found — escrow may not have been authorized.' })); return;
+        }
+        await stripe.paymentIntents.capture(paymentIntentId);
+        payment.status = 'captured';
+        payment.capturedAt = new Date().toISOString();
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // POST /instant-payout { jobId, workerName } → instant payout from worker's Stripe Connect account
+  if (url === '/instant-payout' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const cfg = getCfg();
+        const stripe = require('stripe')(cfg.stripe_secret_key);
+        const { jobId, workerName } = JSON.parse(body);
+
+        // Find captured payment for this job
+        const payment = (db.payments||[]).find(p =>
+          String(p.jobId) === String(jobId) &&
+          p.workerName === workerName &&
+          p.status === 'captured' &&
+          !p.instantPayoutId
+        );
+        if (!payment) {
+          res.writeHead(404, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error: 'No released payment found, or instant payout already requested.' })); return;
+        }
+
+        // Find worker's Stripe Connect account
+        const workerUser = (db.users||[]).find(u => u.name === workerName);
+        if (!workerUser?.stripeConnectId || workerUser.stripeConnectStatus !== 'active') {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error: 'Worker payout account not set up or not active.' })); return;
+        }
+
+        // Get available balance in worker's connected account
+        const balance = await stripe.balance.retrieve({ stripeAccount: workerUser.stripeConnectId });
+        const available = (balance.available||[]).find(b => b.currency === 'usd');
+        if (!available || available.amount <= 0) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error: 'No available balance yet. The payment may still be processing — try again in a few minutes.' })); return;
+        }
+
+        // 1% instant payout fee, minimum $0.50
+        const grossAmount = available.amount;
+        const fee = Math.max(Math.round(grossAmount * 0.01), 50);
+        const netAmount = grossAmount - fee;
+
+        // Create instant payout
+        const payout = await stripe.payouts.create({
+          amount: netAmount,
+          currency: 'usd',
+          method: 'instant',
+        }, { stripeAccount: workerUser.stripeConnectId });
+
+        payment.instantPayoutId = payout.id;
+        payment.instantPayoutAt = new Date().toISOString();
+        payment.instantPayoutFee = fee;
+        saveDB();
+
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true, payoutId: payout.id, netAmount, fee }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // ── STRIPE PAYMENT ──────────────────────────────────────────
+  // POST /create-payment → create Stripe Checkout Session
+  if (url === '/create-payment' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        let cfg = {};
+        try { cfg = JSON.parse(fs.readFileSync(path.join(__dirname,'config.json'),'utf8')); } catch(e){}
+        if (!cfg.stripe_secret_key || cfg.stripe_secret_key.includes('YOUR_STRIPE')) {
+          res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe not configured. Add your stripe_secret_key to config.json.' }));
+          return;
+        }
+        let stripe;
+        try { stripe = require('stripe')(cfg.stripe_secret_key); } catch(e) {
+          res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ error:'Stripe package not installed. Run: npm install' }));
+          return;
+        }
+        const { amount, tip, jobTitle, workerName, hirerId } = JSON.parse(body);
+        const workerAmountCents = Math.round(parseFloat(amount) * 100);
+        if (!workerAmountCents || workerAmountCents < 50) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({error:'Amount must be at least $0.50'})); return;
+        }
+        const PLATFORM_FEE = 0.07; // 7% platform fee
+        const feeCents = Math.round(workerAmountCents * PLATFORM_FEE);
+        const tipCents = tip ? Math.round(parseFloat(tip) * 100) : 0;
+        const appUrl = cfg.app_url || 'http://localhost:3000';
+        const lineItems = [
+          { price_data: { currency:'usd', product_data:{ name: jobTitle||'GoDayWork Job', description:'Worker: '+workerName }, unit_amount: workerAmountCents }, quantity:1 },
+          { price_data: { currency:'usd', product_data:{ name: 'GoDayWork Platform Fee (7%)', description:'Service fee' }, unit_amount: feeCents }, quantity:1 }
+        ];
+        if (tipCents >= 50) {
+          lineItems.push({ price_data: { currency:'usd', product_data:{ name: 'Tip for '+workerName, description:'100% goes to the worker' }, unit_amount: tipCents }, quantity:1 });
+        }
+
+        // Look up worker's Stripe Connect account
+        const workerUser = (db.users||[]).find(u => u.name === workerName);
+        const workerConnectId = workerUser?.stripeConnectId && workerUser?.stripeConnectStatus === 'active'
+          ? workerUser.stripeConnectId : null;
+
+        // Build session — if worker has Connect, add transfer_data so funds go to them (minus platform fee)
+        const sessionParams = {
+          payment_method_types: ['card'],
+          line_items: lineItems,
+          mode: 'payment',
+          success_url: appUrl+'/index.html?payment=success&session_id={CHECKOUT_SESSION_ID}',
+          cancel_url: appUrl+'/index.html?payment=cancelled',
+          metadata: { jobTitle, workerName, hirerId, workerConnectId: workerConnectId||'' }
+        };
+        if (workerConnectId) {
+          sessionParams.payment_intent_data = {
+            application_fee_amount: feeCents,
+            transfer_data: { destination: workerConnectId }
+          };
+        }
+        const session = await stripe.checkout.sessions.create(sessionParams);
+        // Store payment record
+        if (!db.payments) db.payments = [];
+        db.payments.unshift({
+          sessionId: session.id,
+          jobTitle, workerName, hirerId,
+          amount: workerAmountCents/100,
+          tip: tipCents/100,
+          fee: feeCents/100,
+          total: (workerAmountCents+feeCents+tipCents)/100,
+          status: 'pending',
+          workerPaidDirect: !!workerConnectId,
+          date: new Date().toISOString()
+        });
+        if (db.payments.length > 1000) db.payments = db.payments.slice(0,1000);
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ url: session.url }));
+      } catch(e) {
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // OPTIONS for bulletin and payment
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,DELETE','Access-Control-Allow-Headers':'Content-Type,x-admin-token'});
+    res.end(); return;
+  }
+
+  // ── PROMO VIDEO UPLOAD ───────────────────────────────────────
+  // POST /upload-video  — raw binary body, Content-Type: video/mp4
+  if (url === '/upload-video' && req.method === 'POST') {
+    const token = req.headers['x-admin-token'];
+    const cfg = getCfg();
+    if (cfg.bulletin_token && token !== cfg.bulletin_token) { res.writeHead(401); res.end('Unauthorized'); return; }
+    const chunks = [];
+    req.on('data', d => chunks.push(Buffer.isBuffer(d) ? d : Buffer.from(d)));
+    req.on('end', () => {
+      try {
+        const buf = Buffer.concat(chunks);
+        const videoPath = path.join(DATA_DIR, 'promo-video.mp4');
+        console.log('[VIDEO] Writing', buf.length, 'bytes to', videoPath);
+        // Ensure directory exists
+        if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+        fs.writeFileSync(videoPath, buf);
+        console.log('[VIDEO] Upload complete');
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true, size: buf.length }));
+      } catch(e) {
+        console.error('[VIDEO] Upload error:', e.message);
+        res.writeHead(500, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /promo-video — serve with range support for video seeking
+  if (url.startsWith('/promo-video') && req.method === 'GET') {
+    const videoPath = path.join(DATA_DIR, 'promo-video.mp4');
+    if (!fs.existsSync(videoPath)) { res.writeHead(404); res.end('No video'); return; }
+    const stat = fs.statSync(videoPath);
+    const total = stat.size;
+    const range = req.headers['range'];
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': (end - start) + 1,
+        'Content-Type': 'video/mp4',
+        'Cache-Control': 'no-cache',
+      });
+      fs.createReadStream(videoPath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': total,
+        'Content-Type': 'video/mp4',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-cache',
+      });
+      fs.createReadStream(videoPath).pipe(res);
+    }
+    return;
+  }
+
+  // ── UPDATE USER PROFILE ──────────────────────────────────────
+  // POST /update-user  body: {user}
+  if (url === '/update-user' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { user } = JSON.parse(body);
+        if (!user || !user.email) { res.writeHead(400); res.end('Bad request'); return; }
+        if (!db.users) db.users = [];
+        const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+        if (idx >= 0) {
+          db.users[idx] = { ...db.users[idx], ...user };
+          if(autoApproveProfile(db.users[idx])) notifyAutoApproved(db.users[idx].name);
+        } else {
+          db.users.push(user);
+          if(autoApproveProfile(user)) notifyAutoApproved(user.name);
+        }
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // ── REGISTER USER (called on signup to ensure server has the account) ───
+  // POST /register-user  body: {id, email, name, password, ...}
+  if (url === '/register-user' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const user = JSON.parse(body);
+        if (!user.email || !user.name) { res.writeHead(400); res.end('Bad request'); return; }
+        if (!db.users) db.users = [];
+        // Block permanently deleted accounts from re-registering
+        if (!db.deletedEmails) db.deletedEmails = [];
+        if (db.deletedEmails.includes(user.email.toLowerCase())) {
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok: false, banned: true }));
+          return;
+        }
+        const idx = db.users.findIndex(u => u.email && u.email.toLowerCase() === user.email.toLowerCase());
+        if (idx < 0) {
+          db.users.push(user);
+          if(autoApproveProfile(user)) notifyAutoApproved(user.name);
+          dirty = true;
+        } else {
+          // Merge profile fields when user resubmits
+          const existing = db.users[idx];
+          let changed = false;
+          // Sync adminMessages read status back from client (never overwrite server messages with fewer)
+          if(Array.isArray(user.adminMessages) && Array.isArray(existing.adminMessages)){
+            user.adminMessages.forEach((cm,i)=>{ if(existing.adminMessages[i] && cm.read) existing.adminMessages[i].read=true; });
+            changed = true;
+          }
+          ['fullName','firstName','lastName','nameApproved','phone','photo','profileComplete','revokeReason'].forEach(k => {
+            if(user[k] !== undefined && user[k] !== existing[k]){ existing[k]=user[k]; changed=true; }
+          });
+          // Clear revokeReason when they resubmit pending profile
+          if(user.profileComplete === 'pending' && existing.revokeReason){ existing.revokeReason = null; changed=true; }
+          if(autoApproveProfile(existing)){ changed = true; notifyAutoApproved(existing.name); }
+          if(changed) dirty = true;
+        }
+        broadcast({ type:'update', key:'users', val:db.users });
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // ── FORGOT PASSWORD ──────────────────────────────────────────
+  // POST /forgot-password  body: {email}
+  if (url === '/forgot-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', async () => {
+      try {
+        const { email, user: clientUser } = JSON.parse(body);
+        console.log('[RESET] Request for:', email, '| clientUser provided:', !!clientUser);
+        // Always respond OK — never reveal whether email is registered
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        if (email) {
+          if (!db.users) db.users = [];
+          let user = db.users.find(u => u.email && u.email.toLowerCase() === email.toLowerCase());
+          console.log('[RESET] Found in db.users:', !!user, '| db.users count:', db.users.length);
+          // If not in server db but client sent local user data, register and use it
+          if (!user && clientUser && clientUser.email && clientUser.email.toLowerCase() === email.toLowerCase()) {
+            db.users.push(clientUser);
+            dirty = true;
+            user = clientUser;
+            console.log('[RESET] Registered from client data');
+          }
+          if (user) {
+            const crypto = require('crypto');
+            const token = crypto.randomBytes(32).toString('hex');
+            if (!db.resetTokens) db.resetTokens = [];
+            db.resetTokens = db.resetTokens.filter(t => t.email !== email.toLowerCase());
+            db.resetTokens.push({ token, email: email.toLowerCase(), expires: Date.now() + 15*60*1000 });
+            saveDB();
+            const cfg = getCfg();
+            const resetUrl = `${cfg.app_url}?reset=${token}`;
+            console.log('[RESET] Token generated, sending email to:', email, '| notify available:', !!notify);
+            let notify2;
+            try { notify2 = require('./notify'); } catch(e) { console.log('[RESET] notify load error:', e.message); notify2 = null; }
+            if (notify2) {
+              const subject = '⚡ GoDayWork — Reset your password';
+              const html = `
+                <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#0f0f0f;color:#f0ede8;padding:28px;border-radius:12px">
+                  <h2 style="color:#e8c547;margin-bottom:8px">⚡ GoDayWork</h2>
+                  <h3 style="margin-bottom:16px">Reset your password</h3>
+                  <p style="color:#aaa;margin-bottom:20px">Hi ${user.name}, click the button below to reset your password. This link expires in 15 minutes.</p>
+                  <a href="${resetUrl}" style="display:inline-block;background:#e8c547;color:#0f0f0f;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px">Reset Password →</a>
+                  <p style="color:#555;font-size:12px;margin-top:20px">If you didn't request this, you can safely ignore this email.</p>
+                </div>`;
+              const sent = await notify2.sendEmail(email, subject, html);
+              console.log('[RESET] Email send result:', sent);
+            } else {
+              console.log('[RESET] No notify configured — email not sent');
+            }
+          } else {
+            console.log('[RESET] No user found, skipping email');
+          }
+        }
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  // ── RESET PASSWORD ───────────────────────────────────────────
+  // POST /reset-password  body: {token, password}
+  if (url === '/reset-password' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        const { token, password } = JSON.parse(body);
+        if (!token || !password || password.length < 6) {
+          res.writeHead(400, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Invalid request.' })); return;
+        }
+        if (!db.resetTokens) db.resetTokens = [];
+        const entry = db.resetTokens.find(t => t.token === token);
+        if (!entry || Date.now() > entry.expires) {
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Reset link is invalid or expired. Please request a new one.' })); return;
+        }
+        const users = db.users || [];
+        const idx = users.findIndex(u => u.email && u.email.toLowerCase() === entry.email);
+        if (idx === -1) {
+          res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+          res.end(JSON.stringify({ ok:false, error:'Account not found.' })); return;
+        }
+        db.users[idx].password = password;
+        db.resetTokens = db.resetTokens.filter(t => t.token !== token);
+        saveDB();
+        res.writeHead(200, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(500); res.end('Error: '+e.message);
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404); res.end('Not found');
+});
+
+// ── WebSocket ─────────────────────────────────────────────────
+const wss = new WebSocket.Server({ server });
+const clients = new Set();
+const clientMeta = new WeakMap(); // ws -> { ip, user }
+
+wss.on('connection', (ws, req) => {
+  const ip = req.socket.remoteAddress;
+
+  // IP ban check on WS connect
+  if(isIPBanned(ip)) {
+    ws.send(JSON.stringify({ type:'banned', reason:'Your IP has been banned.' }));
+    ws.close();
+    return;
+  }
+
+  clients.add(ws);
+  clientMeta.set(ws, { ip, user: null });
+  console.log(`[+] ${ip} connected (${clients.size} total)`);
+
+  // Send full state
+  // Ensure users are included in init
+    if(!db.users) db.users = [];
+    if(!db.bulletin) db.bulletin = [];
+    if(!db.workers) db.workers = [];
+    ws.send(JSON.stringify({ type:'init', db, mod: safeModData() }));
+
+  ws.on('message', (raw) => {
+    try {
+      const msg = JSON.parse(raw.toString());
+      const meta = clientMeta.get(ws) || {};
+
+      // Track logged-in user
+      if(msg.type === 'identify' && msg.user) {
+        meta.user = msg.user;
+        clientMeta.set(ws, meta);
+        // Save last known IP on user record
+        const visitorIp2 = (req.headers['x-forwarded-for']||'').split(',')[0].trim() || req.socket.remoteAddress;
+        const uIdx = (db.users||[]).findIndex(u=>u.name===msg.user);
+        if(uIdx>=0){ db.users[uIdx].lastIp = visitorIp2; dirty=true; }
+        // Check if user is banned
+        if(isUserBanned(msg.user)) {
+          ws.send(JSON.stringify({ type:'banned', reason:'Your account has been banned.' }));
+          return;
+        }
+      }
+
+      // ── MODERATION COMMANDS (from admin panel) ──────────────
+      if(msg.type === 'mod') {
+        handleModCommand(msg, ws, meta);
+        return;
+      }
+
+      // ── REGULAR DATA UPDATES ─────────────────────────────────
+      if(msg.type === 'set') {
+        const user = meta.user;
+
+        // Check user ban
+        if(user && isUserBanned(user)) {
+          ws.send(JSON.stringify({ type:'banned', reason:'Your account has been banned.' }));
+          return;
+        }
+
+        if(msg.key === 'jobs' && Array.isArray(msg.val)) {
+          // Block jobs with banned words, auto-flag borderline ones
+          const oldIds = new Set((db.jobs||[]).map(j=>j.id));
+          msg.val = msg.val.filter(job => {
+            if(!oldIds.has(job.id)) {
+              // New job — check for banned words
+              const text = (job.title||'')+' '+(job.description||'');
+              if(containsBadWords(text)) {
+                modLog('blocked', `Job "${job.title}" blocked by word filter`, 'system');
+                ws.send(JSON.stringify({type:'toast',message:'⛔ Job blocked: contains prohibited content.'}));
+                return false; // drop it
+              }
+              if(shouldAutoFlag(job) && !mod.flaggedJobs.includes(job.id)) {
+                mod.flaggedJobs.push(job.id);
+                modLog('auto-flag', `Job "${job.title}" auto-flagged`, 'system');
+                saveMod();
+              }
+            }
+            return true;
+          });
+          // Detect newly posted jobs and notify all seekers
+          if (notify && db.jobs && Array.isArray(db.jobs)) {
+            const oldIds = new Set(db.jobs.map(j => j.id));
+            msg.val.forEach(newJob => {
+              if (!oldIds.has(newJob.id)) {
+                console.log(`[NOTIFY] New job posted: "${newJob.title}" by ${newJob.postedBy}`);
+                notifySeekersNewJob(newJob);
+              }
+            });
+          }
+          db.jobs = msg.val;
+          dirty = true;
+        }
+        else if(msg.key === 'ratings') { db.ratings = msg.val; dirty = true; }
+        else if(msg.key === 'users' && Array.isArray(msg.val)) {
+          const existingNames = new Set((db.users||[]).map(u=>u.name));
+          const newCount = msg.val.filter(u=>u.name && !existingNames.has(u.name)).length;
+          if(newCount > 0) db.totalSignups = (db.totalSignups||0) + newCount;
+          db.users = msg.val;
+          dirty = true;
+        }
+        else if(msg.key === 'workers' && Array.isArray(msg.val)) {
+          const now = Date.now();
+          const oldWorkerIds = new Set((db.workers||[]).map(p=>p.id));
+          db.workers = msg.val.filter(p => {
+            if(!p.expiresAt || p.expiresAt <= now) return false;
+            if(!oldWorkerIds.has(p.id)) {
+              const text = (p.skills||'')+' '+(p.desc||'');
+              if(containsBadWords(text)) {
+                modLog('blocked', `Worker post by "${p.name}" blocked by word filter`, 'system');
+                ws.send(JSON.stringify({type:'toast',message:'⛔ Post blocked: contains prohibited content.'}));
+                return false;
+              }
+            }
+            return true;
+          });
+          dirty = true;
+        }
+        else if(msg.key === 'reports') {
+          if(!Array.isArray(db.reports)) db.reports = [];
+          // Add new report
+          if(msg.val && msg.val.length > (db.reports||[]).length) {
+            const newReport = msg.val[msg.val.length-1];
+            modLog('report', `${newReport.reporter} reported ${newReport.reportedUser}: ${newReport.reason}`, newReport.reporter);
+          }
+          db.reports = msg.val;
+          dirty = true;
+        }
+        else if(msg.key && msg.key.startsWith('chat_')) {
+          // Chat is now HTTP-only — WS should NOT overwrite chat
+          // Ignore WS chat updates to prevent stale cache overwrites
+          // (clients use POST /chat and GET /chat exclusively)
+          return;
+        }
+        else if(msg.key === 'adminError') {
+          mod.errors.unshift({ ...msg.val, ip });
+          if(mod.errors.length > 200) mod.errors = mod.errors.slice(0,200);
+          saveMod();
+          return; // don't broadcast errors
+        }
+
+        // Broadcast to other clients
+        const out = JSON.stringify({ type:'update', key:msg.key, val:msg.val });
+        let sent = 0;
+        clients.forEach(c => { if(c!==ws && c.readyState===1){ c.send(out); sent++; } });
+        console.log(`[broadcast] key=${msg.key} → ${sent} clients`);
+      }
+
+    } catch(e) { console.error('[err]', e.message); }
+  });
+
+  ws.on('close', () => {
+    clients.delete(ws);
+    console.log(`[-] ${ip} disconnected (${clients.size} remaining)`);
+  });
+  ws.on('error', e => console.error('[ws error]', e.message));
+});
+
+// ── Mod command handler ───────────────────────────────────────
+function handleModCommand(msg, ws, meta) {
+  const { action, target, reason } = msg;
+  const by = meta.user || 'admin';
+
+  switch(action) {
+
+    case 'banUser':
+      if(!mod.bannedUsers.find(b=>b.name===target)) {
+        mod.bannedUsers.push({ name:target, reason:reason||'', date:new Date().toISOString(), by });
+        // Disconnect the user if online
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) {
+            c.send(JSON.stringify({ type:'banned', reason:'Your account has been banned: '+(reason||'') }));
+          }
+        });
+        modLog('banUser', `Banned user "${target}"`, by);
+        // Remove their jobs
+        const before = db.jobs.length;
+        db.jobs = db.jobs.filter(j => j.postedBy !== target);
+        if(db.jobs.length < before) dirty = true;
+      }
+      break;
+
+    case 'unbanUser':
+      mod.bannedUsers = mod.bannedUsers.filter(b=>b.name!==target);
+      modLog('unbanUser', `Unbanned "${target}"`, by);
+      break;
+
+    case 'banIP':
+      if(!mod.bannedIPs.find(b=>b.ip===target)) {
+        mod.bannedIPs.push({ ip:target, reason:reason||'', date:new Date().toISOString(), by });
+        // Disconnect that IP
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.ip === target) {
+            c.send(JSON.stringify({ type:'banned', reason:'Your IP has been banned.' }));
+            c.close();
+          }
+        });
+        modLog('banIP', `Banned IP "${target}"`, by);
+      }
+      break;
+
+    case 'unbanIP':
+      mod.bannedIPs = mod.bannedIPs.filter(b=>b.ip!==target);
+      modLog('unbanIP', `Unbanned IP "${target}"`, by);
+      break;
+
+    case 'removeJob':
+      db.jobs = db.jobs.filter(j=>j.id!=target);
+      mod.flaggedJobs = mod.flaggedJobs.filter(id=>id!=target);
+      dirty = true;
+      modLog('removeJob', `Removed job ID ${target}`, by);
+      broadcast({ type:'update', key:'jobs', val:db.jobs });
+      break;
+
+    case 'flagJob':
+      if(!mod.flaggedJobs.includes(target)) mod.flaggedJobs.push(target);
+      modLog('flagJob', `Flagged job ID ${target}`, by);
+      break;
+
+    case 'unflagJob':
+      mod.flaggedJobs = mod.flaggedJobs.filter(id=>id!=target);
+      modLog('unflagJob', `Unflagged job ID ${target}`, by);
+      break;
+
+    case 'warnUser':
+      if(!mod.warnings[target]) mod.warnings[target] = [];
+      mod.warnings[target].push({ msg:reason||'Warning from admin', date:new Date().toISOString() });
+      // Send warning to user if online
+      clients.forEach(c => {
+        const m = clientMeta.get(c);
+        if(m && m.user === target) {
+          c.send(JSON.stringify({ type:'warning', message: reason||'You have received a warning from admin.' }));
+        }
+      });
+      modLog('warnUser', `Warned "${target}": ${reason}`, by);
+      break;
+
+    case 'resolveReport':
+      if(db.reports[target]) {
+        db.reports[target].status = msg.status || 'resolved';
+        dirty = true;
+        modLog('resolveReport', `Report #${target} marked ${msg.status}`, by);
+      }
+      break;
+
+    case 'addWordFilter':
+      if(target && !mod.wordFilter.includes(target.toLowerCase())) {
+        mod.wordFilter.push(target.toLowerCase());
+        modLog('addWordFilter', `Added word filter: "${target}"`, by);
+      }
+      break;
+
+    case 'removeWordFilter':
+      mod.wordFilter = mod.wordFilter.filter(w=>w!==target);
+      modLog('removeWordFilter', `Removed word filter: "${target}"`, by);
+      break;
+
+    case 'getModLog':
+      ws.send(JSON.stringify({ type:'modLog', log: mod.modLog.slice(0,100), errors: mod.errors.slice(0,50) }));
+      return;
+
+    case 'getFullMod':
+      ws.send(JSON.stringify({ type:'fullMod', mod }));
+      return;
+
+    case 'clearErrors':
+      mod.errors = [];
+      modLog('clearErrors', 'Error log cleared', by);
+      break;
+
+    case 'toggleAutoFlag':
+      mod.autoFlag = !mod.autoFlag;
+      modLog('toggleAutoFlag', `Auto-flag ${mod.autoFlag?'enabled':'disabled'}`, by);
+      break;
+
+    case 'clearVisits':
+      db.visitLog = [];
+      modLog('clearVisits', 'Site visit log cleared', by);
+      break;
+
+    case 'addFaq':
+      if(!db.faq) db.faq = [];
+      db.faq.push({ id: Date.now(), group: msg.group||'General', question: msg.question||'', answer: msg.answer||'' });
+      dirty = true;
+      broadcast({ type:'update', key:'faq', val:db.faq });
+      modLog('addFaq', `Added FAQ: "${msg.question}"`, by);
+      break;
+
+    case 'editFaq':
+      if(db.faq) {
+        const fi = db.faq.findIndex(f=>f.id==target);
+        if(fi>=0) db.faq[fi] = { ...db.faq[fi], group:msg.group||db.faq[fi].group, question:msg.question||db.faq[fi].question, answer:msg.answer||db.faq[fi].answer };
+        dirty = true;
+        broadcast({ type:'update', key:'faq', val:db.faq });
+        modLog('editFaq', `Edited FAQ: "${msg.question}"`, by);
+      }
+      break;
+
+    case 'deleteFaq':
+      if(db.faq) {
+        db.faq = db.faq.filter(f=>f.id!=target);
+        dirty = true;
+        broadcast({ type:'update', key:'faq', val:db.faq });
+        modLog('deleteFaq', `Deleted FAQ ID ${target}`, by);
+      }
+      break;
+
+    case 'approveProfile': {
+      const u = (db.users||[]).find(u=>u.name===target);
+      if(u){
+        if(!u.photo){
+          ws.send(JSON.stringify({type:'modAck', action:'approveProfile', target, error:'No profile photo — cannot approve.'}));
+          ws.send(JSON.stringify({type:'toast', message:'⚠️ Cannot approve @'+target+' — they have no profile photo. Ask them to resubmit.'}));
+          break;
+        }
+        u.profileComplete = true;
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileApproved' }));
+        });
+        modLog('approveProfile', `Approved profile for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'rejectProfile': {
+      const u = (db.users||[]).find(u=>u.name===target);
+      if(u){
+        u.profileComplete = false;
+        u.fullName = '';
+        u.phone = '';
+        u.photo = '';
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        // Notify the user if online
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: msg.reason||'Your profile was not approved. Please resubmit with a clear photo and your real full name.' }));
+        });
+        modLog('rejectProfile', `Rejected profile for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'revokeProfile': {
+      const u = (db.users||[]).find(u=>u.name===target);
+      if(u){
+        u.profileComplete = false;
+        u.fullName = '';
+        u.phone = '';
+        u.photo = '';
+        u.revokeReason = msg.reason||'Your account verification has been revoked. Please resubmit your profile with a real photo and your full legal name.';
+        dirty = true;
+        broadcast({ type:'update', key:'users', val:db.users });
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if(m && m.user === target) c.send(JSON.stringify({ type:'profileRejected', message: u.revokeReason }));
+        });
+        modLog('revokeProfile', `Revoked verification for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'sendAdminMessage': {
+      const u = (db.users||[]).find(u => u.name === target);
+      const msgText = msg.message || '';
+      if (!msgText) break;
+      if (u) {
+        if (!u.adminMessages) u.adminMessages = [];
+        u.adminMessages.push({ text: msgText, date: new Date().toLocaleDateString(), read: false });
+        dirty = true;
+      }
+      // Send live if user is online
+      let delivered = false;
+      clients.forEach(c => {
+        const m = clientMeta.get(c);
+        if (m && m.user === target) { c.send(JSON.stringify({ type: 'adminMessage', message: msgText })); delivered = true; }
+      });
+      modLog('sendAdminMessage', `Messaged "${target}": ${msgText.slice(0,60)}`, by);
+      ws.send(JSON.stringify({ type:'toast', message: delivered ? '✅ Message delivered — user is online.' : '📨 Message saved — user will see it when they log in.' }));
+      break;
+    }
+
+    case 'broadcastMessage': {
+      const msgText = msg.message || '';
+      const recipients = Array.isArray(msg.recipients) ? msg.recipients : [];
+      if (!msgText || !recipients.length) break;
+      const date = new Date().toLocaleDateString();
+      let liveCount = 0;
+      recipients.forEach(name => {
+        const u = (db.users||[]).find(u => u.name === name);
+        if (u) {
+          if (!u.adminMessages) u.adminMessages = [];
+          u.adminMessages.push({ text: msgText, date, read: false });
+          dirty = true;
+        }
+        // Deliver live if online
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === name) { c.send(JSON.stringify({ type: 'adminMessage', message: msgText })); liveCount++; }
+        });
+      });
+      modLog('broadcastMessage', `Broadcast to ${recipients.length} users: ${msgText.slice(0,80)}`, by);
+      ws.send(JSON.stringify({ type:'toast', message: `📢 Sent to ${recipients.length} users (${liveCount} online now).` }));
+      break;
+    }
+
+    case 'approveName': {
+      const u = (db.users||[]).find(u => u.name === target);
+      if (u) {
+        u.nameApproved = true;
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === target) c.send(JSON.stringify({ type: 'nameApproved' }));
+        });
+        modLog('approveName', `Approved name for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'rejectName': {
+      const u = (db.users||[]).find(u => u.name === target);
+      if (u) {
+        // Notify user if online before clearing
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === target) c.send(JSON.stringify({ type: 'nameRejected' }));
+        });
+        // Remove from DB so they can re-register with correct name
+        db.users = db.users.filter(u2 => u2.name !== target);
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        modLog('rejectName', `Rejected name for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'approveField': {
+      const u = (db.users||[]).find(u => u.name === target);
+      const field = msg.field; // 'photo', 'name', or 'phone'
+      if (u && ['photo','name','phone'].includes(field)) {
+        if (field === 'photo') u.photoApproved = true;
+        else if (field === 'name') u.nameApproved = true;
+        else if (field === 'phone') u.phoneApproved = true;
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        // Notify user if online
+        if (field === 'name') {
+          clients.forEach(c => {
+            const m = clientMeta.get(c);
+            if (m && m.user === target) c.send(JSON.stringify({ type: 'nameApproved' }));
+          });
+        }
+        modLog('approveField', `Approved ${field} for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'rejectField': {
+      const u = (db.users||[]).find(u => u.name === target);
+      const field = msg.field;
+      if (u && ['photo','name','phone'].includes(field)) {
+        if (field === 'photo') { u.photoApproved = false; u.photo = ''; }
+        else if (field === 'name') {
+          u.nameApproved = false;
+          // Notify user their name was rejected so they can resubmit
+          clients.forEach(c => {
+            const m = clientMeta.get(c);
+            if (m && m.user === target) c.send(JSON.stringify({ type: 'nameRejected' }));
+          });
+        }
+        else if (field === 'phone') { u.phoneApproved = false; u.phone = ''; }
+        // If any field is rejected, pull profile back to pending
+        if (u.profileComplete === true) u.profileComplete = 'pending';
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        modLog('rejectField', `Rejected ${field} for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'togglePostLimit': {
+      const u = (db.users||[]).find(u => u.name === target);
+      if (u) {
+        u.noPostLimit = !u.noPostLimit;
+        // If limit was just removed, clear expiresAt on all their active jobs
+        if (u.noPostLimit) {
+          (db.jobs || []).forEach(j => { if (j.postedBy === target) j.expiresAt = null; });
+        } else {
+          // Limit restored — give active jobs a fresh 24h window from now
+          const now = Date.now();
+          (db.jobs || []).forEach(j => { if (j.postedBy === target) j.expiresAt = now + 24*60*60*1000; });
+        }
+        dirty = true;
+        broadcast({ type: 'update', key: 'users', val: db.users });
+        broadcast({ type: 'update', key: 'jobs', val: db.jobs });
+        // Tell the user live so their client refreshes immediately
+        clients.forEach(c => {
+          const m = clientMeta.get(c);
+          if (m && m.user === target) c.send(JSON.stringify({ type: 'init', user: u, jobs: db.jobs, ratings: db.ratings }));
+        });
+        modLog('togglePostLimit', `${u.noPostLimit ? 'Removed' : 'Restored'} 24h post limit for "${target}"`, by);
+      }
+      break;
+    }
+
+    case 'deleteUser': {
+      // Add email to blocklist so they can't re-register
+      const deletedUser = (db.users||[]).find(u => u.name === target);
+      if (deletedUser && deletedUser.email) {
+        if (!db.deletedEmails) db.deletedEmails = [];
+        const emailLow = deletedUser.email.toLowerCase();
+        if (!db.deletedEmails.includes(emailLow)) db.deletedEmails.push(emailLow);
+      }
+      // Remove user record
+      db.users = (db.users||[]).filter(u => u.name !== target);
+      // Remove their jobs
+      db.jobs = (db.jobs||[]).filter(j => j.postedBy !== target);
+      // Remove their ratings
+      if(db.ratings && db.ratings[target]) delete db.ratings[target];
+      // Remove them from applicant lists
+      (db.jobs||[]).forEach(j => {
+        if(j.applicants) j.applicants = j.applicants.filter(a => a.name !== target);
+      });
+      // Remove worker posts
+      db.workers = (db.workers||[]).filter(p => p.name !== target);
+      // Kick user if online
+      clients.forEach(c => {
+        const m = clientMeta.get(c);
+        if(m && m.user === target) c.send(JSON.stringify({ type:'banned', reason:'Your account has been removed by an administrator.' }));
+      });
+      dirty = true;
+      broadcast({ type:'update', key:'jobs', val:db.jobs });
+      broadcast({ type:'update', key:'users', val:db.users });
+      broadcast({ type:'update', key:'ratings', val:db.ratings });
+      modLog('deleteUser', `Deleted account "${target}"`, by);
+      break;
+    }
+  }
+
+  saveMod();
+  // Broadcast updated mod state to all clients
+  broadcastMod();
+  // Echo success to sender
+  ws.send(JSON.stringify({ type:'modAck', action, target }));
+}
+
+// ── Word filter ───────────────────────────────────────────────
+function filterWords(text) {
+  if(!text) return text;
+  let out = text;
+  mod.wordFilter.forEach(w => {
+    const re = new RegExp(w, 'gi');
+    out = out.replace(re, '*'.repeat(w.length));
+  });
+  return out;
+}
+
+// ── Start ─────────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+  const ifaces = require('os').networkInterfaces();
+  let ip = 'YOUR-IP';
+  Object.values(ifaces).flat().forEach(i => { if(i.family==='IPv4'&&!i.internal) ip=i.address; });
+  console.log('\n  ⚡ GoDayWork SERVER RUNNING');
+  console.log('  ─────────────────────────────────────');
+  console.log(`  App:     http://localhost:${PORT}`);
+  console.log(`  Network: http://${ip}:${PORT}`);
+  console.log(`  Admin:   http://localhost:${PORT}/admin`);
+  console.log('\n  Press Ctrl+C to stop.\n');
+});
